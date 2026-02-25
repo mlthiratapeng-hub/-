@@ -110,5 +110,5 @@ async def id_lookup(ctx, pid: str):
     else:
         await msg.edit(content=None, embed=zick_embed(data, pid))
 
-  import os
+import os
 bot.run(os.getenv("BOTTOKEN"))
