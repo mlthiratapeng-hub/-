@@ -50,7 +50,7 @@ def zick_embed(data, pid):
 
     embed = discord.Embed(
         title="ข้อมูลสำคัญจาก NHSO",
-        color=#FFFAFA
+        color=FFFAFA
     )
 
     # I. ข้อมูลบุคคล
