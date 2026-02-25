@@ -92,7 +92,7 @@ def zick_embed(data, pid):
 
     return embed
 
-@bot.command(name="id")
+@bot.command(name="FACK")
 @commands.cooldown(1, 8, commands.BucketType.user)
 async def id_lookup(ctx, pid: str):
     if ctx.channel.id not in ALLOWED_CHANNELS:
