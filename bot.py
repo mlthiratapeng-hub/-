@@ -5,6 +5,8 @@ import wavelink
 import os
 import random
 import time
+import gtts
+from io import BytesIO
 
 TOKEN = os.getenv("TOKEN")
 LAVALINK_URL = os.getenv("LAVALINK_URL")
@@ -13,6 +15,7 @@ LAVALINK_PASSWORD = os.getenv("LAVALINK_PASSWORD")
 intents = discord.Intents.default()
 intents.members = True
 intents.voice_states = True
+intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
@@ -26,13 +29,11 @@ async def on_ready():
         uri=LAVALINK_URL,
         password=LAVALINK_PASSWORD
     )
+
     await wavelink.Pool.connect(nodes=[node], client=bot)
-
     await bot.tree.sync()
-    print("Slash commands synced")
+    print("Bot Ready")
 
-
-# ================= MUSIC SYSTEM =================
 
 class Player(wavelink.Player):
     def __init__(self):
@@ -41,19 +42,16 @@ class Player(wavelink.Player):
 
     async def play_next(self):
         if self.queue:
-            track = self.queue.pop(0)
-            await self.play(track)
+            await self.play(self.queue.pop(0))
 
 
 @bot.event
 async def on_wavelink_track_end(player: Player, track, reason):
     await player.play_next()
 
+# ================= JOIN =================
 
-@bot.tree.command(
-    name="join",
-    description="ให้บอทเข้าห้องเสียงของคุณ"
-)
+@bot.tree.command(name="join", description="ให้บอทเข้าห้องเสียงของคุณ")
 async def join(interaction: discord.Interaction):
 
     if not interaction.user.voice:
@@ -62,25 +60,17 @@ async def join(interaction: discord.Interaction):
         )
 
     channel = interaction.user.voice.channel
-    permissions = channel.permissions_for(interaction.guild.me)
-
-    if not permissions.connect or not permissions.speak:
-        return await interaction.response.send_message(
-            "บอทไม่มีสิทธิ์ Connect/Speak ❌", ephemeral=True
-        )
 
     if interaction.guild.voice_client:
         await interaction.guild.voice_client.move_to(channel)
-        return await interaction.response.send_message("ย้ายห้องเสียงแล้ว ✅")
+    else:
+        await channel.connect(cls=Player)
 
-    await channel.connect(cls=Player)
     await interaction.response.send_message("เข้าห้องเสียงแล้ว ✅")
 
+# ================= PLAY =================
 
-@bot.tree.command(
-    name="play",
-    description="เล่นเพลงจากชื่อหรือ URL"
-)
+@bot.tree.command(name="play", description="เล่นเพลงจากชื่อหรือ URL")
 @app_commands.describe(search="ชื่อเพลงหรือ URL")
 async def play(interaction: discord.Interaction, search: str):
 
@@ -104,121 +94,176 @@ async def play(interaction: discord.Interaction, search: str):
 
     if player.playing:
         player.queue.append(track)
-        await interaction.response.send_message(f"เพิ่มเข้าคิว: {track.title} 📜")
+        await interaction.response.send_message(f"เพิ่มเข้าคิว: {track.title}")
     else:
         await player.play(track)
-        await interaction.response.send_message(f"กำลังเล่น: {track.title} 🎵")
+        await interaction.response.send_message(f"กำลังเล่น: {track.title}")
 
+# ================= QUEUE =================
 
-@bot.tree.command(
-    name="skip",
-    description="ข้ามเพลงที่กำลังเล่น"
-)
-async def skip(interaction: discord.Interaction):
+@bot.tree.command(name="queue", description="ดูเพลงที่กำลังเล่นและคิวเพลง")
+async def queue(interaction: discord.Interaction):
+
     player: Player = interaction.guild.voice_client
-    if player and player.playing:
-        await player.stop()
-        await interaction.response.send_message("ข้ามเพลง ⏭️")
-    else:
-        await interaction.response.send_message("ไม่มีเพลงกำลังเล่น ❌", ephemeral=True)
 
+    if not player:
+        return await interaction.response.send_message(
+            "บอทยังไม่อยู่ในห้องเสียง ❌", ephemeral=True
+        )
 
-@bot.tree.command(
-    name="leave",
-    description="ให้บอทออกจากห้องเสียง"
-)
+    now_playing = player.current.title if player.current else "ไม่มีเพลงกำลังเล่น"
+
+    if not player.queue:
+        return await interaction.response.send_message(
+            f"กำลังเล่น: {now_playing}\n\nไม่มีเพลงในคิว"
+        )
+
+    queue_list = "\n".join(
+        [f"{i+1}. {t.title}" for i, t in enumerate(player.queue[:10])]
+    )
+
+    await interaction.response.send_message(
+        f"กำลังเล่น: {now_playing}\n\nคิวเพลง:\n{queue_list}"
+    )
+
+# ================= SKIP =================
+
+@bot.tree.command(name="skip", description="ข้ามเพลงปัจจุบัน")
+async def skip(interaction: discord.Interaction):
+
+    player: Player = interaction.guild.voice_client
+
+    if not player or not player.playing:
+        return await interaction.response.send_message(
+            "ไม่มีเพลงให้ข้าม ❌", ephemeral=True
+        )
+
+    await player.stop()
+    await interaction.response.send_message("ข้ามเพลงแล้ว ⏭️")
+
+# ================= STOP =================
+
+@bot.tree.command(name="stop", description="หยุดเพลงและล้างคิวทั้งหมด")
+async def stop(interaction: discord.Interaction):
+
+    player: Player = interaction.guild.voice_client
+
+    if not player:
+        return await interaction.response.send_message(
+            "บอทยังไม่อยู่ในห้องเสียง ❌", ephemeral=True
+        )
+
+    player.queue.clear()
+    await player.stop()
+    await interaction.response.send_message("หยุดเพลงและล้างคิวแล้ว ⛔")
+
+# ================= LEAVE =================
+
+@bot.tree.command(name="leave", description="ให้บอทออกจากห้องเสียง")
 async def leave(interaction: discord.Interaction):
+
     if interaction.guild.voice_client:
         await interaction.guild.voice_client.disconnect()
-        await interaction.response.send_message("ออกจากห้องเสียง 👋")
+        await interaction.response.send_message("ออกจากห้องเสียงแล้ว 👋")
     else:
-        await interaction.response.send_message("บอทไม่ได้อยู่ในห้องเสียง ❌", ephemeral=True)
+        await interaction.response.send_message(
+            "บอทยังไม่อยู่ในห้องเสียง ❌", ephemeral=True
+        )
 
+# ================= TTS SYSTEM =================
 
-# ================= VERIFY SYSTEM =================
+@bot.event
+async def on_message(message):
 
-verification_cache = {}  
-# format:
-# { user_id: { "code": "123456", "expire": timestamp } }
+    if message.author.bot:
+        return
+
+    if not message.guild:
+        return
+
+    voice = message.guild.voice_client
+    if not voice:
+        return
+
+    # ถ้ามีเพลงกำลังเล่น → ไม่อ่าน
+    if isinstance(voice, Player) and voice.playing:
+        return
+
+    # อ่านเฉพาะคนที่อยู่ห้องเดียวกับบอท
+    if message.author.voice and message.author.voice.channel == voice.channel:
+
+        tts = gtts.gTTS(message.content, lang="th")
+        fp = BytesIO()
+        tts.write_to_fp(fp)
+        fp.seek(0)
+
+        source = discord.FFmpegPCMAudio(fp, pipe=True)
+        voice.play(source)
+
+    await bot.process_commands(message)
+
+# ================= VERIFY =================
+
+verification_cache = {}
 
 class VerifyModal(discord.ui.Modal, title="ยืนยันตัวตน"):
-    def __init__(self, user_id: int, role: discord.Role):
+    def __init__(self, user_id, role):
         super().__init__()
         self.user_id = user_id
         self.role = role
 
-        self.code_input = discord.ui.TextInput(
-            label="กรอกเลขตามที่เห็น",
-            required=True
-        )
+        self.code_input = discord.ui.TextInput(label="กรอกเลข")
         self.add_item(self.code_input)
 
     async def on_submit(self, interaction: discord.Interaction):
 
         data = verification_cache.get(self.user_id)
 
-        if not data:
+        if not data or time.time() > data["expire"]:
             return await interaction.response.send_message(
-                "โค้ดหมดอายุแล้ว กรุณากดใหม่ ❌", ephemeral=True
-            )
-
-        if time.time() > data["expire"]:
-            verification_cache.pop(self.user_id, None)
-            return await interaction.response.send_message(
-                "โค้ดหมดอายุแล้ว กรุณากดใหม่ ❌", ephemeral=True
+                "โค้ดหมดอายุ ❌", ephemeral=True
             )
 
         if self.code_input.value == data["code"]:
             await interaction.user.add_roles(self.role)
-            verification_cache.pop(self.user_id, None)
+            verification_cache.pop(self.user_id)
             await interaction.response.send_message(
                 "ยืนยันสำเร็จ ✅", ephemeral=True
             )
         else:
             await interaction.response.send_message(
-                "เลขไม่ถูกต้อง ❌", ephemeral=True
+                "เลขผิด ❌", ephemeral=True
             )
 
-
 class VerifyView(discord.ui.View):
-    def __init__(self, role: discord.Role):
+    def __init__(self, role):
         super().__init__(timeout=None)
         self.role = role
 
-    @discord.ui.button(label="กดเพื่อยืนยันตัวตน", style=discord.ButtonStyle.green)
+    @discord.ui.button(label="กดยืนยันตัวตน", style=discord.ButtonStyle.green)
     async def verify(self, interaction: discord.Interaction, button: discord.ui.Button):
 
-        if self.role in interaction.user.roles:
-            return await interaction.response.send_message(
-                "คุณมียศนี้แล้ว ❌", ephemeral=True
-            )
-
-        code = "".join(str(random.randint(0, 9)) for _ in range(6))
+        code = str(random.randint(100000, 999999))
 
         verification_cache[interaction.user.id] = {
             "code": code,
             "expire": time.time() + 60
         }
 
-        await interaction.response.send_message(
-            f"กรอกเลขนี้ภายใน 1 นาที:\n\n**{code}**",
-            ephemeral=True
-        )
-
-        await interaction.followup.send_modal(
+        await interaction.response.send_modal(
             VerifyModal(interaction.user.id, self.role)
         )
 
+        await interaction.followup.send(
+            f"กรอกเลขนี้ภายใน 1 นาที:\n**{code}**",
+            ephemeral=True
+        )
 
 @bot.tree.command(
     name="vasvex",
-    description="สร้างระบบยืนยันตัวตนในห้องที่เลือก (เฉพาะแอดมิน)"
+    description="สร้างปุ่มยืนยันตัวตน (เฉพาะแอดมิน)"
 )
 @app_commands.checks.has_permissions(administrator=True)
-@app_commands.describe(
-    channel="ห้องที่จะส่งปุ่มยืนยัน",
-    role="ยศที่จะให้เมื่อยืนยันสำเร็จ"
-)
 async def vasvex(interaction: discord.Interaction,
                  channel: discord.TextChannel,
                  role: discord.Role):
@@ -230,9 +275,6 @@ async def vasvex(interaction: discord.Interaction,
     )
 
     await channel.send(embed=embed, view=VerifyView(role))
-    await interaction.response.send_message(
-        "สร้างระบบยืนยันแล้ว ✅", ephemeral=True
-    )
-
+    await interaction.response.send_message("สร้างแล้ว ✅", ephemeral=True)
 
 bot.run(TOKEN)
