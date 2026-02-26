@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from gtts import gTTS
 
 load_dotenv()
-TOKEN = os.getenv("BOTTOKEN")
+TOKEN = os.getenv("TOKEN")
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -63,4 +63,4 @@ async def on_ready():
     await bot.tree.sync()
     print(f"Logged in as {bot.user}")
 
-bot.run(BOTTOKEN)
+bot.run(TOKEN)
