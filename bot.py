@@ -4,6 +4,7 @@ from discord import app_commands
 import wavelink
 import os
 import random
+import time
 
 TOKEN = os.getenv("TOKEN")
 LAVALINK_URL = os.getenv("LAVALINK_URL")
@@ -49,17 +50,24 @@ async def on_wavelink_track_end(player: Player, track, reason):
     await player.play_next()
 
 
-@bot.tree.command(name="join")
+@bot.tree.command(
+    name="join",
+    description="ให้บอทเข้าห้องเสียงของคุณ"
+)
 async def join(interaction: discord.Interaction):
 
     if not interaction.user.voice:
-        return await interaction.response.send_message("คุณต้องอยู่ห้องเสียงก่อน ❌", ephemeral=True)
+        return await interaction.response.send_message(
+            "คุณต้องอยู่ห้องเสียงก่อน ❌", ephemeral=True
+        )
 
     channel = interaction.user.voice.channel
     permissions = channel.permissions_for(interaction.guild.me)
 
     if not permissions.connect or not permissions.speak:
-        return await interaction.response.send_message("บอทไม่มีสิทธิ์ Connect/Speak ❌", ephemeral=True)
+        return await interaction.response.send_message(
+            "บอทไม่มีสิทธิ์ Connect/Speak ❌", ephemeral=True
+        )
 
     if interaction.guild.voice_client:
         await interaction.guild.voice_client.move_to(channel)
@@ -69,12 +77,17 @@ async def join(interaction: discord.Interaction):
     await interaction.response.send_message("เข้าห้องเสียงแล้ว ✅")
 
 
-@bot.tree.command(name="play")
+@bot.tree.command(
+    name="play",
+    description="เล่นเพลงจากชื่อหรือ URL"
+)
 @app_commands.describe(search="ชื่อเพลงหรือ URL")
 async def play(interaction: discord.Interaction, search: str):
 
     if not interaction.user.voice:
-        return await interaction.response.send_message("คุณต้องอยู่ห้องเสียงก่อน ❌", ephemeral=True)
+        return await interaction.response.send_message(
+            "คุณต้องอยู่ห้องเสียงก่อน ❌", ephemeral=True
+        )
 
     if not interaction.guild.voice_client:
         await interaction.user.voice.channel.connect(cls=Player)
@@ -83,7 +96,9 @@ async def play(interaction: discord.Interaction, search: str):
 
     tracks = await wavelink.Playable.search(search)
     if not tracks:
-        return await interaction.response.send_message("หาเพลงไม่เจอ ❌", ephemeral=True)
+        return await interaction.response.send_message(
+            "หาเพลงไม่เจอ ❌", ephemeral=True
+        )
 
     track = tracks[0]
 
@@ -95,7 +110,10 @@ async def play(interaction: discord.Interaction, search: str):
         await interaction.response.send_message(f"กำลังเล่น: {track.title} 🎵")
 
 
-@bot.tree.command(name="skip")
+@bot.tree.command(
+    name="skip",
+    description="ข้ามเพลงที่กำลังเล่น"
+)
 async def skip(interaction: discord.Interaction):
     player: Player = interaction.guild.voice_client
     if player and player.playing:
@@ -105,7 +123,10 @@ async def skip(interaction: discord.Interaction):
         await interaction.response.send_message("ไม่มีเพลงกำลังเล่น ❌", ephemeral=True)
 
 
-@bot.tree.command(name="leave")
+@bot.tree.command(
+    name="leave",
+    description="ให้บอทออกจากห้องเสียง"
+)
 async def leave(interaction: discord.Interaction):
     if interaction.guild.voice_client:
         await interaction.guild.voice_client.disconnect()
@@ -116,30 +137,47 @@ async def leave(interaction: discord.Interaction):
 
 # ================= VERIFY SYSTEM =================
 
+verification_cache = {}  
+# format:
+# { user_id: { "code": "123456", "expire": timestamp } }
+
 class VerifyModal(discord.ui.Modal, title="ยืนยันตัวตน"):
-    def __init__(self, correct_code: str, role: discord.Role):
+    def __init__(self, user_id: int, role: discord.Role):
         super().__init__()
-        self.correct_code = correct_code
+        self.user_id = user_id
         self.role = role
 
         self.code_input = discord.ui.TextInput(
             label="กรอกเลขตามที่เห็น",
-            min_length=4,
-            max_length=8,
             required=True
         )
         self.add_item(self.code_input)
 
     async def on_submit(self, interaction: discord.Interaction):
 
-        if self.role in interaction.user.roles:
-            return await interaction.response.send_message("คุณมียศนี้แล้ว ❌", ephemeral=True)
+        data = verification_cache.get(self.user_id)
 
-        if self.code_input.value == self.correct_code:
+        if not data:
+            return await interaction.response.send_message(
+                "โค้ดหมดอายุแล้ว กรุณากดใหม่ ❌", ephemeral=True
+            )
+
+        if time.time() > data["expire"]:
+            verification_cache.pop(self.user_id, None)
+            return await interaction.response.send_message(
+                "โค้ดหมดอายุแล้ว กรุณากดใหม่ ❌", ephemeral=True
+            )
+
+        if self.code_input.value == data["code"]:
             await interaction.user.add_roles(self.role)
-            await interaction.response.send_message("ยืนยันสำเร็จ ✅", ephemeral=True)
+            verification_cache.pop(self.user_id, None)
+            await interaction.response.send_message(
+                "ยืนยันสำเร็จ ✅", ephemeral=True
+            )
         else:
-            await interaction.response.send_message("เลขไม่ถูกต้อง ❌", ephemeral=True)
+            await interaction.response.send_message(
+                "เลขไม่ถูกต้อง ❌", ephemeral=True
+            )
 
 
 class VerifyView(discord.ui.View):
@@ -151,37 +189,50 @@ class VerifyView(discord.ui.View):
     async def verify(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         if self.role in interaction.user.roles:
-            return await interaction.response.send_message("คุณมียศนี้แล้ว ❌", ephemeral=True)
+            return await interaction.response.send_message(
+                "คุณมียศนี้แล้ว ❌", ephemeral=True
+            )
 
         code = "".join(str(random.randint(0, 9)) for _ in range(6))
-        await interaction.response.send_modal(VerifyModal(code, self.role))
 
-        await interaction.followup.send(
-            f"กรอกเลขนี้:\n\n**{code}**",
+        verification_cache[interaction.user.id] = {
+            "code": code,
+            "expire": time.time() + 60
+        }
+
+        await interaction.response.send_message(
+            f"กรอกเลขนี้ภายใน 1 นาที:\n\n**{code}**",
             ephemeral=True
         )
 
+        await interaction.followup.send_modal(
+            VerifyModal(interaction.user.id, self.role)
+        )
 
-@bot.tree.command(name="vasvex")
+
+@bot.tree.command(
+    name="vasvex",
+    description="สร้างระบบยืนยันตัวตนในห้องที่เลือก (เฉพาะแอดมิน)"
+)
 @app_commands.checks.has_permissions(administrator=True)
 @app_commands.describe(
-    channel="ห้องที่จะส่งปุ่ม",
-    role="ยศที่จะให้"
+    channel="ห้องที่จะส่งปุ่มยืนยัน",
+    role="ยศที่จะให้เมื่อยืนยันสำเร็จ"
 )
 async def vasvex(interaction: discord.Interaction,
                  channel: discord.TextChannel,
                  role: discord.Role):
 
-    view = VerifyView(role)
-
     embed = discord.Embed(
         title="ระบบยืนยันตัวตน",
-        description="กดปุ่มด้านล่างเพื่อยืนยันตัวตน",
+        description="กดปุ่มด้านล่างเพื่อรับยศ",
         color=discord.Color.blue()
     )
 
-    await channel.send(embed=embed, view=view)
-    await interaction.response.send_message("สร้างระบบยืนยันแล้ว ✅", ephemeral=True)
+    await channel.send(embed=embed, view=VerifyView(role))
+    await interaction.response.send_message(
+        "สร้างระบบยืนยันแล้ว ✅", ephemeral=True
+    )
 
 
 bot.run(TOKEN)
