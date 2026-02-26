@@ -261,7 +261,7 @@ class VerifyView(discord.ui.View):
 
 @bot.tree.command(
     name="vasvex",
-    description="สร้างปุ่มยืนยันตัวตน (เฉพาะแอดมิน)"
+    description="สร้างปุ่มยืนยันตัวตน (เฉพาะแอดมินเท่านั้น)"
 )
 @app_commands.checks.has_permissions(administrator=True)
 async def vasvex(interaction: discord.Interaction,
