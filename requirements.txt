@@ -1,5 +1,4 @@
 discord.py
-gTTS
 yt-dlp
 PyNaCl
 python-dotenv
