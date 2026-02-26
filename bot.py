@@ -5,7 +5,8 @@ import wavelink
 import os
 import random
 import time
-import gtts
+import asyncio
+from gtts import gTTS
 from io import BytesIO
 
 TOKEN = os.getenv("TOKEN")
@@ -56,17 +57,39 @@ async def join(interaction: discord.Interaction):
 
     if not interaction.user.voice:
         return await interaction.response.send_message(
-            "คุณต้องอยู่ห้องเสียงก่อน ❌", ephemeral=True
+            "คุณต้องอยู่ห้องเสียงก่อน ❌",
+            ephemeral=True
         )
 
     channel = interaction.user.voice.channel
 
-    if interaction.guild.voice_client:
-        await interaction.guild.voice_client.move_to(channel)
-    else:
-        await channel.connect(cls=Player)
+    try:
+        if interaction.guild.voice_client:
+            await interaction.guild.voice_client.move_to(channel)
+        else:
+            await channel.connect(cls=Player)
 
-    await interaction.response.send_message("เข้าห้องเสียงแล้ว ✅")
+        await interaction.response.send_message("เข้าห้องเสียงแล้ว ✅")
+
+    except Exception as e:
+        await interaction.response.send_message(
+            f"เกิดข้อผิดพลาด: {e}",
+            ephemeral=True
+        )
+
+# ================= LEAVE =================
+
+@bot.tree.command(name="leave", description="ให้บอทออกจากห้องเสียง")
+async def leave(interaction: discord.Interaction):
+
+    if not interaction.guild.voice_client:
+        return await interaction.response.send_message(
+            "บอทไม่ได้อยู่ในห้องเสียง ❌",
+            ephemeral=True
+        )
+
+    await interaction.guild.voice_client.disconnect()
+    await interaction.response.send_message("ออกจากห้องเสียงแล้ว ✅")
 
 # ================= PLAY =================
 
@@ -76,7 +99,8 @@ async def play(interaction: discord.Interaction, search: str):
 
     if not interaction.user.voice:
         return await interaction.response.send_message(
-            "คุณต้องอยู่ห้องเสียงก่อน ❌", ephemeral=True
+            "คุณต้องอยู่ห้องเสียงก่อน ❌",
+            ephemeral=True
         )
 
     if not interaction.guild.voice_client:
@@ -87,43 +111,48 @@ async def play(interaction: discord.Interaction, search: str):
     tracks = await wavelink.Playable.search(search)
     if not tracks:
         return await interaction.response.send_message(
-            "หาเพลงไม่เจอ ❌", ephemeral=True
+            "หาเพลงไม่เจอ ❌",
+            ephemeral=True
         )
 
     track = tracks[0]
 
     if player.playing:
         player.queue.append(track)
-        await interaction.response.send_message(f"เพิ่มเข้าคิว: {track.title}")
+        await interaction.response.send_message(
+            f"เพิ่มเข้าคิว: {track.title} 🎵"
+        )
     else:
         await player.play(track)
-        await interaction.response.send_message(f"กำลังเล่น: {track.title}")
+        await interaction.response.send_message(
+            f"กำลังเล่น: {track.title} 🎶"
+        )
 
 # ================= QUEUE =================
 
-@bot.tree.command(name="queue", description="ดูเพลงที่กำลังเล่นและคิวเพลง")
+@bot.tree.command(name="queue", description="ดูคิวเพลงปัจจุบัน")
 async def queue(interaction: discord.Interaction):
 
     player: Player = interaction.guild.voice_client
 
     if not player:
         return await interaction.response.send_message(
-            "บอทยังไม่อยู่ในห้องเสียง ❌", ephemeral=True
+            "บอทยังไม่ได้เข้าห้องเสียง ❌",
+            ephemeral=True
         )
-
-    now_playing = player.current.title if player.current else "ไม่มีเพลงกำลังเล่น"
 
     if not player.queue:
         return await interaction.response.send_message(
-            f"กำลังเล่น: {now_playing}\n\nไม่มีเพลงในคิว"
+            "ไม่มีเพลงในคิว ❌",
+            ephemeral=True
         )
 
-    queue_list = "\n".join(
+    msg = "\n".join(
         [f"{i+1}. {t.title}" for i, t in enumerate(player.queue[:10])]
     )
 
     await interaction.response.send_message(
-        f"กำลังเล่น: {now_playing}\n\nคิวเพลง:\n{queue_list}"
+        f"คิวเพลง:\n{msg}"
     )
 
 # ================= SKIP =================
@@ -135,42 +164,14 @@ async def skip(interaction: discord.Interaction):
 
     if not player or not player.playing:
         return await interaction.response.send_message(
-            "ไม่มีเพลงให้ข้าม ❌", ephemeral=True
+            "ไม่มีเพลงกำลังเล่น ❌",
+            ephemeral=True
         )
 
     await player.stop()
     await interaction.response.send_message("ข้ามเพลงแล้ว ⏭️")
 
-# ================= STOP =================
-
-@bot.tree.command(name="stop", description="หยุดเพลงและล้างคิวทั้งหมด")
-async def stop(interaction: discord.Interaction):
-
-    player: Player = interaction.guild.voice_client
-
-    if not player:
-        return await interaction.response.send_message(
-            "บอทยังไม่อยู่ในห้องเสียง ❌", ephemeral=True
-        )
-
-    player.queue.clear()
-    await player.stop()
-    await interaction.response.send_message("หยุดเพลงและล้างคิวแล้ว ⛔")
-
-# ================= LEAVE =================
-
-@bot.tree.command(name="leave", description="ให้บอทออกจากห้องเสียง")
-async def leave(interaction: discord.Interaction):
-
-    if interaction.guild.voice_client:
-        await interaction.guild.voice_client.disconnect()
-        await interaction.response.send_message("ออกจากห้องเสียงแล้ว 👋")
-    else:
-        await interaction.response.send_message(
-            "บอทยังไม่อยู่ในห้องเสียง ❌", ephemeral=True
-        )
-
-# ================= TTS SYSTEM =================
+# ================= TTS AUTO =================
 
 @bot.event
 async def on_message(message):
@@ -178,21 +179,16 @@ async def on_message(message):
     if message.author.bot:
         return
 
-    if not message.guild:
-        return
-
     voice = message.guild.voice_client
     if not voice:
         return
 
-    # ถ้ามีเพลงกำลังเล่น → ไม่อ่าน
     if isinstance(voice, Player) and voice.playing:
         return
 
-    # อ่านเฉพาะคนที่อยู่ห้องเดียวกับบอท
     if message.author.voice and message.author.voice.channel == voice.channel:
 
-        tts = gtts.gTTS(message.content, lang="th")
+        tts = gTTS(message.content, lang="th")
         fp = BytesIO()
         tts.write_to_fp(fp)
         fp.seek(0)
@@ -211,7 +207,6 @@ class VerifyModal(discord.ui.Modal, title="ยืนยันตัวตน"):
         super().__init__()
         self.user_id = user_id
         self.role = role
-
         self.code_input = discord.ui.TextInput(label="กรอกเลข")
         self.add_item(self.code_input)
 
@@ -221,18 +216,21 @@ class VerifyModal(discord.ui.Modal, title="ยืนยันตัวตน"):
 
         if not data or time.time() > data["expire"]:
             return await interaction.response.send_message(
-                "โค้ดหมดอายุ ❌", ephemeral=True
+                "โค้ดหมดอายุ ❌",
+                ephemeral=True
             )
 
         if self.code_input.value == data["code"]:
             await interaction.user.add_roles(self.role)
             verification_cache.pop(self.user_id)
             await interaction.response.send_message(
-                "ยืนยันสำเร็จ ✅", ephemeral=True
+                "ยืนยันสำเร็จ ✅",
+                ephemeral=True
             )
         else:
             await interaction.response.send_message(
-                "เลขผิด ❌", ephemeral=True
+                "เลขผิด ❌",
+                ephemeral=True
             )
 
 class VerifyView(discord.ui.View):
@@ -243,12 +241,16 @@ class VerifyView(discord.ui.View):
     @discord.ui.button(label="กดยืนยันตัวตน", style=discord.ButtonStyle.green)
     async def verify(self, interaction: discord.Interaction, button: discord.ui.Button):
 
-        code = str(random.randint(100000, 999999))
+        existing = verification_cache.get(interaction.user.id)
 
-        verification_cache[interaction.user.id] = {
-            "code": code,
-            "expire": time.time() + 60
-        }
+        if existing and time.time() < existing["expire"]:
+            code = existing["code"]
+        else:
+            code = str(random.randint(100000, 999999))
+            verification_cache[interaction.user.id] = {
+                "code": code,
+                "expire": time.time() + 60
+            }
 
         await interaction.response.send_modal(
             VerifyModal(interaction.user.id, self.role)
@@ -261,7 +263,7 @@ class VerifyView(discord.ui.View):
 
 @bot.tree.command(
     name="vasvex",
-    description="สร้างปุ่มยืนยันตัวตน (เฉพาะแอดมินเท่านั้น)"
+    description="สร้างปุ่มยืนยันตัวตน (แอดมินเท่านั้น)"
 )
 @app_commands.checks.has_permissions(administrator=True)
 async def vasvex(interaction: discord.Interaction,
