@@ -169,7 +169,7 @@ class VerifyView(discord.ui.View):
 @app_commands.describe(
     channel="ห้องที่จะส่งปุ่ม",
     role="ยศที่จะให้",
-    digits="จำนวนหลักของเลข เช่น 4 หรือ 6"
+    digits="จำนวนหลักของเลข เช่น 4 หรือ 7"
 )
 async def vasvex(interaction: discord.Interaction,
                  channel: discord.TextChannel,
