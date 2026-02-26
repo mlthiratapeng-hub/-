@@ -2,3 +2,4 @@ discord.py
 wavelink
 PyNaCl
 python-dotenv
+gTTS
