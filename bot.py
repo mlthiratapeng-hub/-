@@ -5,7 +5,6 @@ import wavelink
 import os
 import random
 import time
-import asyncio
 from gtts import gTTS
 from io import BytesIO
 
@@ -26,28 +25,34 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 async def on_ready():
     print(f"Logged in as {bot.user}")
 
-    node = wavelink.Node(
-        uri=LAVALINK_URL,
-        password=LAVALINK_PASSWORD
+    await wavelink.Pool.connect(
+        nodes=[
+            wavelink.Node(
+                uri=LAVALINK_URL,
+                password=LAVALINK_PASSWORD
+            )
+        ],
+        client=bot
     )
 
-    await wavelink.Pool.connect(nodes=[node], client=bot)
     await bot.tree.sync()
     print("Bot Ready")
 
 
 class Player(wavelink.Player):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.queue = []
 
     async def play_next(self):
         if self.queue:
-            await self.play(self.queue.pop(0))
+            next_track = self.queue.pop(0)
+            await self.play(next_track)
 
 
-@bot.event
-async def on_wavelink_track_end(player: Player, track, reason):
+@bot.listen("on_wavelink_track_end")
+async def on_track_end(payload: wavelink.TrackEndEventPayload):
+    player: Player = payload.player
     await player.play_next()
 
 # ================= JOIN =================
@@ -64,8 +69,10 @@ async def join(interaction: discord.Interaction):
     channel = interaction.user.voice.channel
 
     try:
-        if interaction.guild.voice_client:
-            await interaction.guild.voice_client.move_to(channel)
+        player: Player = interaction.guild.voice_client
+
+        if player:
+            await player.move_to(channel)
         else:
             await channel.connect(cls=Player)
 
@@ -82,13 +89,15 @@ async def join(interaction: discord.Interaction):
 @bot.tree.command(name="leave", description="ให้บอทออกจากห้องเสียง")
 async def leave(interaction: discord.Interaction):
 
-    if not interaction.guild.voice_client:
+    player: Player = interaction.guild.voice_client
+
+    if not player:
         return await interaction.response.send_message(
             "บอทไม่ได้อยู่ในห้องเสียง ❌",
             ephemeral=True
         )
 
-    await interaction.guild.voice_client.disconnect()
+    await player.disconnect()
     await interaction.response.send_message("ออกจากห้องเสียงแล้ว ✅")
 
 # ================= PLAY =================
@@ -109,6 +118,7 @@ async def play(interaction: discord.Interaction, search: str):
     player: Player = interaction.guild.voice_client
 
     tracks = await wavelink.Playable.search(search)
+
     if not tracks:
         return await interaction.response.send_message(
             "หาเพลงไม่เจอ ❌",
@@ -130,7 +140,7 @@ async def play(interaction: discord.Interaction, search: str):
 
 # ================= QUEUE =================
 
-@bot.tree.command(name="queue", description="ดูคิวเพลงปัจจุบัน")
+@bot.tree.command(name="queue", description="ดูคิวเพลง")
 async def queue(interaction: discord.Interaction):
 
     player: Player = interaction.guild.voice_client
@@ -151,13 +161,11 @@ async def queue(interaction: discord.Interaction):
         [f"{i+1}. {t.title}" for i, t in enumerate(player.queue[:10])]
     )
 
-    await interaction.response.send_message(
-        f"คิวเพลง:\n{msg}"
-    )
+    await interaction.response.send_message(f"คิวเพลง:\n{msg}")
 
 # ================= SKIP =================
 
-@bot.tree.command(name="skip", description="ข้ามเพลงปัจจุบัน")
+@bot.tree.command(name="skip", description="ข้ามเพลง")
 async def skip(interaction: discord.Interaction):
 
     player: Player = interaction.guild.voice_client
@@ -179,14 +187,15 @@ async def on_message(message):
     if message.author.bot:
         return
 
-    voice = message.guild.voice_client
-    if not voice:
+    player: Player = message.guild.voice_client
+
+    if not player:
         return
 
-    if isinstance(voice, Player) and voice.playing:
+    if player.playing:
         return
 
-    if message.author.voice and message.author.voice.channel == voice.channel:
+    if message.author.voice and message.author.voice.channel == player.channel:
 
         tts = gTTS(message.content, lang="th")
         fp = BytesIO()
@@ -194,7 +203,7 @@ async def on_message(message):
         fp.seek(0)
 
         source = discord.FFmpegPCMAudio(fp, pipe=True)
-        voice.play(source)
+        player.play(source)
 
     await bot.process_commands(message)
 
@@ -202,12 +211,19 @@ async def on_message(message):
 
 verification_cache = {}
 
-class VerifyModal(discord.ui.Modal, title="ยืนยันตัวตน"):
-    def __init__(self, user_id, role):
-        super().__init__()
+class VerifyModal(discord.ui.Modal):
+
+    def __init__(self, user_id, role, code):
+        super().__init__(title="ยืนยันตัวตนด้วยเลขสุ่ม")
         self.user_id = user_id
         self.role = role
-        self.code_input = discord.ui.TextInput(label="กรอกเลข")
+        self.code = code
+
+        self.code_input = discord.ui.TextInput(
+            label=f"รหัสยืนยันตัวตน : {code}",
+            placeholder="กรอกเลขตามด้านบน"
+        )
+
         self.add_item(self.code_input)
 
     async def on_submit(self, interaction: discord.Interaction):
@@ -234,6 +250,7 @@ class VerifyModal(discord.ui.Modal, title="ยืนยันตัวตน"):
             )
 
 class VerifyView(discord.ui.View):
+
     def __init__(self, role):
         super().__init__(timeout=None)
         self.role = role
@@ -253,12 +270,7 @@ class VerifyView(discord.ui.View):
             }
 
         await interaction.response.send_modal(
-            VerifyModal(interaction.user.id, self.role)
-        )
-
-        await interaction.followup.send(
-            f"กรอกเลขนี้ภายใน 1 นาที:\n**{code}**",
-            ephemeral=True
+            VerifyModal(interaction.user.id, self.role, code)
         )
 
 @bot.tree.command(
