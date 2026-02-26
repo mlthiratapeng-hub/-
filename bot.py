@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from gtts import gTTS
 
 load_dotenv()
-TOKEN = os.getenv("TOKEN")
+TOKEN = os.getenv("BOTTOKEN")
 
 intents = discord.Intents.default()
 intents.message_content = True
