@@ -14,7 +14,7 @@ TOKEN = os.getenv("TOKEN")
 PROMO_IMAGE = "https://cdn.discordapp.com/attachments/1476624074921738467/1476892902880706691/77a78e76e8b70493bb8615f5b06e36f7.gif"
 
 # ห้องที่ใช้ !link ได้
-LINK_CHANNEL_ID = 1476913488973529088
+LINK_CHANNEL_ID = 1476914330854490204
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
