@@ -18,15 +18,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 song_queues = {}
 
-# เก็บข้อมูลยืนยันตัวตน
-# โครงสร้าง:
-# {
-#   guild_id: {
-#       "code": 1234,
-#       "role_id": 000000,
-#       "expire": เวลา unix หมดอายุ
-#   }
-# }
+# ================= VERIFICATION DATA =================
 verification_data = {}
 
 # ================= PROMO EMBED =================
@@ -135,9 +127,12 @@ class VerifyModal(discord.ui.Modal):
         super().__init__(title="ยืนยันตัวตนด้วยเลขสุ่ม")
         self.guild_id = guild_id
 
+        data = verification_data.get(guild_id)
+        code_display = str(data["code"]) if data else "หมดเวลาแล้ว"
+
         self.code_input = discord.ui.TextInput(
-            label="กรอกรหัสยืนยันตัวตน",
-            placeholder="ใส่ตัวเลขที่แสดงไว้",
+            label=f"กรอกรหัส: {code_display}",
+            placeholder="ใส่ตัวเลขด้านบน",
             required=True
         )
         self.add_item(self.code_input)
@@ -179,25 +174,30 @@ async def vasvex(interaction: discord.Interaction, channel: discord.TextChannel,
     if not interaction.user.guild_permissions.administrator:
         return await interaction.followup.send("ต้องเป็นแอดมินเท่านั้น")
 
-    # ถ้ามีระบบอยู่แล้วและยังไม่หมดเวลา → ไม่สุ่มใหม่
-    existing = verification_data.get(interaction.guild.id)
-    if existing and time.time() < existing["expire"]:
-        return await interaction.followup.send("🍅 มีรหัสที่ยังไม่หมดอายุอยู่")
+    guild_id = interaction.guild.id
+    now = time.time()
 
-    code = random.randint(1000, 9999)
+    # ถ้ามีโค้ดอยู่และยังไม่หมดเวลา → ไม่สุ่มใหม่
+    if guild_id in verification_data:
+        existing = verification_data[guild_id]
+        if now < existing["expire"]:
+            return await interaction.followup.send("🐝 มีรหัสที่ยังไม่หมดอายุอยู่")
 
-    verification_data[interaction.guild.id] = {
+    # สุ่มใหม่ 6 หลัก
+    code = random.randint(100000, 999999)
+
+    verification_data[guild_id] = {
         "code": code,
         "role_id": role.id,
-        "expire": time.time() + 60
+        "expire": now + 60
     }
 
     embed = promo_embed(
         "🔐 ระบบยืนยันตัวตน",
-        f"กรอกเลขนี้: **{code}**\nเลขจะหมดอายุใน 1 นาที"
+        "กดปุ่มด้านล่างเพื่อยืนยันตัวตน\nรหัสจะหมดอายุใน 1 นาที"
     )
 
-    await channel.send(embed=embed, view=VerifyView(interaction.guild.id))
+    await channel.send(embed=embed, view=VerifyView(guild_id))
     await interaction.followup.send("🥬 สร้างระบบยืนยันตัวตนแล้ว")
 
 # ================= READY =================
