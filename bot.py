@@ -27,93 +27,152 @@ welcome_settings = {}
 goodbye_settings = {}
 
 # ---------- MODAL ----------
+
 class WelcomeModal(discord.ui.Modal, title="ตั้งค่าข้อความต้อนรับ"):
 
+    def __init__(self, target_guild_id):
+        super().__init__()
+        self.target_guild_id = target_guild_id
+
     message = discord.ui.TextInput(
-        label="📁ข้อความต้อนรับ",
-        placeholder="🗯️พิมพ์ข้อความที่ต้องการ...",
+        label="ข้อความต้อนรับ",
         style=discord.TextStyle.paragraph,
         required=True,
         max_length=1000
     )
 
     image_url = discord.ui.TextInput(
-        label="💾ลิงก์รูปภาพ (ไม่ใส่ก็ได้)",
-        placeholder="https://...",
+        label="ลิงก์รูปภาพ (ไม่ใส่ก็ได้)",
         required=False
     )
 
     async def on_submit(self, interaction: discord.Interaction):
-        embed = discord.Embed(
-            description=self.message.value,
-            color=discord.Color.green()
-        )
 
-        if self.image_url.value:
-            embed.set_image(url=self.image_url.value)
+        welcome_settings[self.target_guild_id] = {
+            "message": self.message.value,
+            "image": self.image_url.value
+        }
 
         await interaction.response.send_message(
-            "📁 ตั้งค่าข้อความ Welcome เรียบร้อยแล้ว",
-            embed=embed,
+            "✅ บันทึก Welcome เรียบร้อย",
             ephemeral=True
         )
 
 
-class GoodbyeModal(discord.ui.Modal, title="ตั้งค่าข้อความลาก่อน"):
+class GoodbyeModal(discord.ui.Modal, title="ตั้งค่าข้อความลาจาก"):
+
+    def __init__(self, target_guild_id):
+        super().__init__()
+        self.target_guild_id = target_guild_id
 
     message = discord.ui.TextInput(
-        label="📁ข้อความลาก่อน",
+        label="ข้อความลาจาก",
         style=discord.TextStyle.paragraph,
         required=True
     )
 
     image_url = discord.ui.TextInput(
-        label="💾ลิงก์รูปภาพ (ไม่ใส่ก็ได้)",
+        label="ลิงก์รูปภาพ (ไม่ใส่ก็ได้)",
         required=False
     )
 
     async def on_submit(self, interaction: discord.Interaction):
-        embed = discord.Embed(
-            description=self.message.value,
-            color=discord.Color.red()
-        )
 
-        if self.image_url.value:
-            embed.set_image(url=self.image_url.value)
+        goodbye_settings[self.target_guild_id] = {
+            "message": self.message.value,
+            "image": self.image_url.value
+        }
 
         await interaction.response.send_message(
-            "📁 ตั้งค่า Goodbye เรียบร้อยแล้ว",
-            embed=embed,
+            "✅ บันทึก Goodbye เรียบร้อย",
             ephemeral=True
         )
 
 # ---------- VIEW ----------
+
 class SetupView(discord.ui.View):
+    def __init__(self, target_guild_id):
+        super().__init__(timeout=120)
+        self.target_guild_id = target_guild_id
+
     @discord.ui.button(label="Welcome", style=discord.ButtonStyle.green)
-    async def welcome_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(WelcomeModal())
+    async def welcome_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(WelcomeModal(self.target_guild_id))
 
     @discord.ui.button(label="Goodbye", style=discord.ButtonStyle.red)
-    async def goodbye_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(GoodbyeModal())
+    async def goodbye_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(GoodbyeModal(self.target_guild_id))
 
 
 # ---------- SLASH COMMAND ----------
-@bot.tree.command(name="setwegoo", description="📁wecomegoodbey")
-async def setwegoo(interaction: discord.Interaction):
 
-    # จำกัดเฉพาะเซิร์ฟเวอร์ที่ต้องการ
-    if interaction.guild.id != REQUIRED_GUILD_ID:
+@bot.tree.command(
+    name="setwegoo",
+    description="ตั้งค่าระบบต้อนรับ/ลาจาก"
+)
+@app_commands.describe(target_guild_id="ใส่ไอดีดิสปลายทาง")
+async def setwegoo(interaction: discord.Interaction, target_guild_id: str):
+
+    # เช็คว่าคนใช้ต้องอยู่ในดิสที่กำหนด
+    if interaction.guild is None or interaction.guild.id != REQUIRED_GUILD_ID:
         return await interaction.response.send_message(
-            "💢 คำสั่งนี้ใช้ได้เฉพาะคนที่อยู่ในเซิฟเวอร์บอท",
+            "💢 คำสั่งนี้ใช้ได้เฉพาะในเซิร์ฟเวอร์ที่กำหนด",
             ephemeral=True
         )
 
-    embed = discord.Embed(
-        title="⚙️ ระบบต้อนรับ / ออก",
-        description="📁เลือกโหมดด้านล่าง",
-        color=discord.Color.blue()
+    try:
+        target_guild_id = int(target_guild_id)
+    except:
+        return await interaction.response.send_message(
+            "💢 ใส่ Guild ID ให้ถูกต้อง",
+            ephemeral=True
+        )
+
+    await interaction.response.send_message(
+        "เลือกโหมดด้านล่าง",
+        view=SetupView(target_guild_id),
+        ephemeral=True
     )
+
+# ---------- EVENT JOIN / LEAVE ----------
+
+@bot.event
+async def on_member_join(member):
+
+    guild_id = member.guild.id
+
+    if guild_id in welcome_settings:
+        data = welcome_settings[guild_id]
+
+        embed = discord.Embed(
+            description=data["message"].replace("{user}", member.mention),
+            color=discord.Color.green()
+        )
+
+        if data["image"]:
+            embed.set_image(url=data["image"])
+
+        await member.guild.system_channel.send(embed=embed)
+
+
+@bot.event
+async def on_member_remove(member):
+
+    guild_id = member.guild.id
+
+    if guild_id in goodbye_settings:
+        data = goodbye_settings[guild_id]
+
+        embed = discord.Embed(
+            description=data["message"].replace("{user}", member.name),
+            color=discord.Color.red()
+        )
+
+        if data["image"]:
+            embed.set_image(url=data["image"])
+
+        await member.guild.system_channel.send(embed=embed)
+
 
 # ================= EMBED =================
 
