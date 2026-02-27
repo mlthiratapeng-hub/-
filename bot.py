@@ -1,265 +1,179 @@
 import discord
-from discord.ext import commands
 from discord import app_commands
-import wavelink
+from discord.ext import commands
+import yt_dlp
+import asyncio
 import os
 import random
 import time
+from dotenv import load_dotenv
 
+load_dotenv()
 TOKEN = os.getenv("TOKEN")
-LAVALINK_URL = os.getenv("LAVALINK_URL")  # https://xxxx.up.railway.app
-LAVALINK_PASSWORD = os.getenv("LAVALINK_PASSWORD")
 
-intents = discord.Intents.default()
-intents.members = True
-intents.voice_states = True
-intents.message_content = True
+PROMO_IMAGE = "https://i.imgur.com/yourimage.png"  # ใส่ลิงก์รูปมึง
 
+intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# ================= LAVALINK =================
+song_queues = {}
+verification_data = {}
 
-@bot.event
-async def on_ready():
-    print(f"Logged in as {bot.user}")
+# ================= PROMO EMBED =================
 
-    await wavelink.Pool.connect(
-        nodes=[
-            wavelink.Node(
-                uri=LAVALINK_URL,
-                password=LAVALINK_PASSWORD
-            )
-        ],
-        client=bot
-    )
-
-    await bot.tree.sync()
-    print("Bot Ready")
-
-
-# ================= EMBED BUILDER =================
-
-def music_embed(title, description, thumbnail=None, duration=None):
-    embed = discord.Embed(
-        title=title,
-        description=description,
-        color=discord.Color.purple()
-    )
-
-    if thumbnail:
-        embed.set_thumbnail(url=thumbnail)
-
-    if duration:
-        embed.add_field(name="ความยาว", value=duration)
-
-    embed.set_footer(text="VASVEX Music System")
+def promo_embed(title, desc):
+    embed = discord.Embed(title=title, description=desc, color=0x2f3136)
+    embed.set_image(url=PROMO_IMAGE)
     return embed
 
+# ================= MUSIC SYSTEM =================
 
-def format_time(ms):
-    seconds = int(ms / 1000)
-    minutes = seconds // 60
-    seconds = seconds % 60
-    return f"{minutes:02}:{seconds:02}"
+async def play_next(guild):
+    if guild.id in song_queues and song_queues[guild.id]:
+        url, title = song_queues[guild.id].pop(0)
+        vc = guild.voice_client
+        source = await discord.FFmpegOpusAudio.from_probe(url, options='-vn')
+        vc.play(source, after=lambda e: asyncio.run_coroutine_threadsafe(play_next(guild), bot.loop))
 
-
-# ================= PLAY (AUTO JOIN) =================
-
-@bot.tree.command(name="play", description="เล่นเพลงจากชื่อหรือ URL")
-@app_commands.describe(search="ชื่อเพลงหรือ URL")
-async def play(interaction: discord.Interaction, search: str):
-
+@bot.tree.command(name="join", description="ให้บอทเข้าห้องเสียง")
+async def join(interaction: discord.Interaction):
+    await interaction.response.defer()
     if not interaction.user.voice:
-        return await interaction.response.send_message(
-            embed=music_embed("❌ ข้อผิดพลาด", "คุณต้องอยู่ห้องเสียงก่อน"),
-            ephemeral=True
-        )
+        return await interaction.followup.send(embed=promo_embed("❌ ผิดพลาด", "คุณต้องอยู่ในห้องเสียง"))
 
-    player: wavelink.Player = interaction.guild.voice_client
-
-    if not player:
-        player = await interaction.user.voice.channel.connect(cls=wavelink.Player)
-
-    tracks = await wavelink.Playable.search(search)
-
-    if not tracks:
-        return await interaction.response.send_message(
-            embed=music_embed("❌ ไม่พบเพลง", "ลองค้นหาใหม่อีกครั้ง"),
-            ephemeral=True
-        )
-
-    track = tracks[0]
-
-    if player.playing:
-        await player.queue.put_wait(track)
-
-        embed = music_embed(
-            "🎶 เพิ่มเข้าคิวแล้ว",
-            f"**{track.title}**",
-            thumbnail=track.artwork
-        )
-
-        await interaction.response.send_message(embed=embed)
-
-    else:
-        await player.play(track)
-
-        embed = music_embed(
-            "🎵 กำลังเล่นเพลง",
-            f"**{track.title}**",
-            thumbnail=track.artwork,
-            duration=format_time(track.length)
-        )
-
-        await interaction.response.send_message(embed=embed)
-
-
-# ================= QUEUE =================
-
-@bot.tree.command(name="queue", description="ดูคิวเพลง")
-async def queue(interaction: discord.Interaction):
-
-    player: wavelink.Player = interaction.guild.voice_client
-
-    if not player or not player.queue:
-        return await interaction.response.send_message(
-            embed=music_embed("📜 คิวเพลง", "ไม่มีเพลงในคิว"),
-            ephemeral=True
-        )
-
-    upcoming = list(player.queue)[:10]
-
-    description = "\n".join(
-        [f"{i+1}. {t.title}" for i, t in enumerate(upcoming)]
-    )
-
-    embed = music_embed("📜 คิวเพลง", description)
-    await interaction.response.send_message(embed=embed)
-
-
-# ================= SKIP =================
-
-@bot.tree.command(name="skip", description="ข้ามเพลง")
-async def skip(interaction: discord.Interaction):
-
-    player: wavelink.Player = interaction.guild.voice_client
-
-    if not player or not player.playing:
-        return await interaction.response.send_message(
-            embed=music_embed("❌ ไม่มีเพลง", "ไม่มีเพลงกำลังเล่น"),
-            ephemeral=True
-        )
-
-    await player.skip()
-
-    await interaction.response.send_message(
-        embed=music_embed("⏭️ ข้ามเพลงแล้ว", "กำลังเล่นเพลงถัดไป")
-    )
-
-
-# ================= LEAVE =================
+    channel = interaction.user.voice.channel
+    await channel.connect()
+    await interaction.followup.send(embed=promo_embed("✅ สำเร็จ", f"เข้าห้อง {channel.name}"))
 
 @bot.tree.command(name="leave", description="ให้บอทออกจากห้องเสียง")
 async def leave(interaction: discord.Interaction):
+    await interaction.response.defer()
+    if interaction.guild.voice_client:
+        await interaction.guild.voice_client.disconnect()
+        await interaction.followup.send(embed=promo_embed("👋 ออกแล้ว", "บอทออกจากห้องเสียงแล้ว"))
 
-    player: wavelink.Player = interaction.guild.voice_client
+@bot.tree.command(name="play", description="เล่นเพลงจาก YouTube")
+@app_commands.describe(query="ชื่อเพลงหรือ URL")
+async def play(interaction: discord.Interaction, query: str):
+    await interaction.response.defer(thinking=True)
 
-    if not player:
-        return await interaction.response.send_message(
-            embed=music_embed("❌ ไม่อยู่ห้องเสียง", "บอทยังไม่ได้เข้าห้องเสียง"),
-            ephemeral=True
-        )
+    if not interaction.user.voice:
+        return await interaction.followup.send(embed=promo_embed("❌ ผิดพลาด", "คุณต้องอยู่ในห้องเสียง"))
 
-    await player.disconnect()
+    if not interaction.guild.voice_client:
+        await interaction.user.voice.channel.connect()
 
-    await interaction.response.send_message(
-        embed=music_embed("👋 ออกจากห้องเสียงแล้ว", "เจอกันใหม่")
-    )
+    vc = interaction.guild.voice_client
 
+    YDL_OPTIONS = {'format': 'bestaudio'}
+    with yt_dlp.YoutubeDL(YDL_OPTIONS) as ydl:
+        info = ydl.extract_info(f"ytsearch:{query}", download=False)
+        url = info['entries'][0]['url']
+        title = info['entries'][0]['title']
 
-# ================= VERIFY SYSTEM =================
+    if not interaction.guild.id in song_queues:
+        song_queues[interaction.guild.id] = []
 
-verification_cache = {}
+    song_queues[interaction.guild.id].append((url, title))
 
-class VerifyModal(discord.ui.Modal):
+    if not vc.is_playing():
+        await play_next(interaction.guild)
 
-    def __init__(self, user_id, role, code):
-        super().__init__(title="ยืนยันตัวตนด้วยเลขสุ่ม")
-        self.user_id = user_id
-        self.role = role
-        self.code = code
+    await interaction.followup.send(embed=promo_embed("🎵 เพิ่มเพลงแล้ว", f"**{title}**"))
 
-        self.code_input = discord.ui.TextInput(
-            label=f"รหัสยืนยันตัวตน : {code}",
-            placeholder="กรอกเลขตามด้านบน"
-        )
+@bot.tree.command(name="queue", description="ดูคิวเพลง")
+async def queue(interaction: discord.Interaction):
+    await interaction.response.defer()
+    if interaction.guild.id not in song_queues or not song_queues[interaction.guild.id]:
+        return await interaction.followup.send(embed=promo_embed("📭 คิวว่าง", "ไม่มีเพลงในคิว"))
 
-        self.add_item(self.code_input)
+    desc = ""
+    for i, (_, title) in enumerate(song_queues[interaction.guild.id], 1):
+        desc += f"{i}. {title}\n"
+
+    await interaction.followup.send(embed=promo_embed("📜 คิวเพลง", desc))
+
+@bot.tree.command(name="skip", description="ข้ามเพลง")
+async def skip(interaction: discord.Interaction):
+    await interaction.response.defer()
+    vc = interaction.guild.voice_client
+    if vc and vc.is_playing():
+        vc.stop()
+        await interaction.followup.send(embed=promo_embed("⏭ ข้ามแล้ว", "ข้ามเพลงปัจจุบัน"))
+    else:
+        await interaction.followup.send(embed=promo_embed("❌ ผิดพลาด", "ไม่มีเพลงกำลังเล่น"))
+
+# ================= AUTO TTS =================
+
+@bot.event
+async def on_message(message):
+    if message.author.bot:
+        return
+
+    if message.guild and message.guild.voice_client:
+        vc = message.guild.voice_client
+        if vc.is_connected():
+            tts_source = discord.FFmpegPCMAudio(
+                f"https://translate.google.com/translate_tts?ie=UTF-8&q={message.content}&tl=th&client=tw-ob"
+            )
+            vc.play(tts_source)
+
+    await bot.process_commands(message)
+
+# ================= VERIFICATION SYSTEM =================
+
+class VerifyModal(discord.ui.Modal, title="ยืนยันตัวตน"):
+    code = discord.ui.TextInput(label="กรอกเลขตามที่เห็น")
 
     async def on_submit(self, interaction: discord.Interaction):
+        data = verification_data.get(interaction.guild.id)
+        if not data:
+            return await interaction.response.send_message("หมดเวลาแล้ว", ephemeral=True)
 
-        data = verification_cache.get(self.user_id)
-
-        if not data or time.time() > data["expire"]:
-            return await interaction.response.send_message(
-                embed=music_embed("❌ โค้ดหมดอายุ", "กรุณากดใหม่อีกครั้ง"),
-                ephemeral=True
-            )
-
-        if self.code_input.value == data["code"]:
-            await interaction.user.add_roles(self.role)
-            verification_cache.pop(self.user_id)
-            await interaction.response.send_message(
-                embed=music_embed("✅ สำเร็จ", "คุณได้รับยศแล้ว"),
-                ephemeral=True
-            )
+        if str(self.code.value) == str(data["code"]):
+            role = interaction.guild.get_role(data["role_id"])
+            await interaction.user.add_roles(role)
+            await interaction.response.send_message("✅ ยืนยันสำเร็จ", ephemeral=True)
         else:
-            await interaction.response.send_message(
-                embed=music_embed("❌ เลขผิด", "ลองใหม่อีกครั้ง"),
-                ephemeral=True
-            )
+            await interaction.response.send_message("❌ เลขไม่ถูกต้อง", ephemeral=True)
 
 class VerifyView(discord.ui.View):
-
-    def __init__(self, role):
+    def __init__(self):
         super().__init__(timeout=None)
-        self.role = role
 
-    @discord.ui.button(label="กดยืนยันตัวตน", style=discord.ButtonStyle.green)
+    @discord.ui.button(label="ยืนยันตัวตน", style=discord.ButtonStyle.green)
     async def verify(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(VerifyModal())
 
-        existing = verification_cache.get(interaction.user.id)
+@bot.tree.command(name="vasvex", description="สร้างระบบยืนยันตัวตน")
+@app_commands.describe(channel="ห้องที่จะส่ง", role="ยศที่จะให้")
+async def vasvex(interaction: discord.Interaction, channel: discord.TextChannel, role: discord.Role):
+    await interaction.response.defer()
 
-        if existing and time.time() < existing["expire"]:
-            code = existing["code"]
-        else:
-            code = str(random.randint(100000, 999999))
-            verification_cache[interaction.user.id] = {
-                "code": code,
-                "expire": time.time() + 60
-            }
+    if not interaction.user.guild_permissions.administrator:
+        return await interaction.followup.send("ต้องเป็นแอดมินเท่านั้น")
 
-        await interaction.response.send_modal(
-            VerifyModal(interaction.user.id, self.role, code)
-        )
+    code = random.randint(1000, 9999)
+    verification_data[interaction.guild.id] = {
+        "code": code,
+        "role_id": role.id,
+        "expire": time.time() + 60
+    }
 
-@bot.tree.command(
-    name="vasvex",
-    description="สร้างปุ่มยืนยันตัวตน (แอดมินเท่านั้น)"
-)
-@app_commands.checks.has_permissions(administrator=True)
-async def vasvex(interaction: discord.Interaction,
-                 channel: discord.TextChannel,
-                 role: discord.Role):
+    embed = promo_embed("🔐 ระบบยืนยันตัวตน", f"กรอกเลขนี้: **{code}**\nเลขจะหมดอายุใน 1 นาที")
 
-    embed = discord.Embed(
-        title="ระบบยืนยันตัวตน",
-        description="กดปุ่มด้านล่างเพื่อรับยศ",
-        color=discord.Color.blue()
-    )
+    await channel.send(embed=embed, view=VerifyView())
+    await interaction.followup.send("สร้างระบบแล้ว")
 
-    await channel.send(embed=embed, view=VerifyView(role))
-    await interaction.response.send_message("สร้างแล้ว ✅", ephemeral=True)
+    await asyncio.sleep(60)
+    if interaction.guild.id in verification_data:
+        del verification_data[interaction.guild.id]
 
+# ================= READY =================
+
+@bot.event
+async def on_ready():
+    await bot.tree.sync()
+    print(f"Logged in as {bot.user}")
 
 bot.run(TOKEN)
