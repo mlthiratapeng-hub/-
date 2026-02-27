@@ -180,7 +180,7 @@ async def vasvex(interaction: discord.Interaction,
     member = required_guild.get_member(interaction.user.id)
     if not member:
         return await interaction.response.send_message(
-            "🪻ต้องอยู่ในเซิร์ฟเวอร์ของเจ้าของบอทก่อนถึงจะใช้ได้หน้าโปร",
+            "🪻ต้องเข้าดิสหน้าโปรของบอทก่อนนะค่ะ",
             ephemeral=True
         )
 
