@@ -122,7 +122,7 @@ async def skip(interaction: discord.Interaction):
     await interaction.followup.send(embed=promo_embed("⏭️ ข้ามแล้ว", "เพลงถูกข้ามเรียบร้อย"))
 
 @bot.tree.command(name="clearqueue", description="🗑️ ล้างคิวเพลงทั้งหมด")
-async def clearqueue(interaction: discord.Interation):
+async def clearqueue(interaction: discord.Interaction):
     await interaction.response.defer()
 
     if interaction.guild.id in song_queues:
