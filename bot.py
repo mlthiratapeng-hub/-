@@ -31,7 +31,7 @@ verification_data = {}
 welcome_settings = {}
 goodbye_settings = {}
 
-# ================= โหลด / บันทึก =================
+# ================= โหลด/บันทึก =================
 
 def load_data():
     if not os.path.exists(DATA_FILE):
@@ -45,144 +45,115 @@ def save_data(data):
 
 data = load_data()
 
-# ================= MODAL =================
+# ================= เช็คสิทธิ์ =================
 
-class WelcomeModal(discord.ui.Modal, title="ตั้งค่าข้อความต้อนรับ"):
+async def is_authorized(interaction: discord.Interaction):
 
-    message = discord.ui.TextInput(
-        label="ข้อความต้อนรับ",
-        style=discord.TextStyle.paragraph,
-        placeholder="เช่น ยินดีต้อนรับ {user} เข้าสู่เซิร์ฟ!",
-        required=True,
-        max_length=1000
-    )
+    if interaction.guild is None:
+        return False
 
-    channel_id = discord.ui.TextInput(
-        label="ใส่ไอดีห้อง (Channel ID)",
-        placeholder="เช่น 123456789012345678",
-        required=True
-    )
+    # ต้องเป็นแอดมินดิสปลายทาง
+    if not interaction.user.guild_permissions.administrator:
+        return False
 
-    async def on_submit(self, interaction: discord.Interaction):
-        guild_id = str(interaction.guild.id)
+    # ต้องอยู่ในดิสหลัก
+    main_guild = bot.get_guild(MAIN_GUILD_ID)
+    if main_guild is None:
+        return False
 
-        if guild_id not in data:
-            data[guild_id] = {}
+    member = main_guild.get_member(interaction.user.id)
+    if member is None:
+        return False
 
-        data[guild_id]["welcome"] = {
-            "message": self.message.value,
-            "channel_id": self.channel_id.value
-        }
+    return True
 
-        save_data(data)
+# ================= WELCOME =================
 
-        await interaction.response.send_message(
-            "✅ บันทึก Welcome เรียบร้อย",
+@bot.tree.command(name="welcome", description="ตั้งค่าข้อความต้อนรับ")
+@app_commands.describe(
+    message="ข้อความต้อนรับ (ใช้ {user})",
+    channel="เลือกห้องที่จะส่ง"
+)
+async def welcome(interaction: discord.Interaction, message: str, channel: discord.TextChannel):
+
+    if not await is_authorized(interaction):
+        return await interaction.response.send_message(
+            "❌ ต้องอยู่ในดิสหลักและเป็นแอดมินของเซิร์ฟเวอร์นี้",
             ephemeral=True
         )
 
+    guild_id = str(interaction.guild.id)
 
-class GoodbyeModal(discord.ui.Modal, title="ตั้งค่าข้อความลา"):
+    if guild_id not in data:
+        data[guild_id] = {}
 
-    message = discord.ui.TextInput(
-        label="ข้อความลา",
-        style=discord.TextStyle.paragraph,
-        placeholder="เช่น {user} ได้ออกจากเซิร์ฟแล้ว",
-        required=True,
-        max_length=1000
-    )
+    data[guild_id]["welcome"] = {
+        "message": message,
+        "channel_id": channel.id
+    }
 
-    channel_id = discord.ui.TextInput(
-        label="ใส่ไอดีห้อง (Channel ID)",
-        placeholder="เช่น 123456789012345678",
-        required=True
-    )
-
-    async def on_submit(self, interaction: discord.Interaction):
-        guild_id = str(interaction.guild.id)
-
-        if guild_id not in data:
-            data[guild_id] = {}
-
-        data[guild_id]["goodbye"] = {
-            "message": self.message.value,
-            "channel_id": self.channel_id.value
-        }
-
-        save_data(data)
-
-        await interaction.response.send_message(
-            "✅ บันทึก Goodbye เรียบร้อย",
-            ephemeral=True
-        )
-
-# ================= VIEW =================
-
-class SetupView(discord.ui.View):
-
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message(
-                "❌ เฉพาะแอดมินเท่านั้น",
-                ephemeral=True
-            )
-            return False
-        return True
-
-    @discord.ui.button(label="Welcome", style=discord.ButtonStyle.green)
-    async def welcome_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(WelcomeModal())
-
-    @discord.ui.button(label="Goodbye", style=discord.ButtonStyle.red)
-    async def goodbye_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(GoodbyeModal())
-
-    @discord.ui.button(label="❌ ยกเลิกการรัน", style=discord.ButtonStyle.danger)
-    async def cancel_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.edit_message(
-            content="❌ ปิดเมนูเรียบร้อย",
-            view=None
-        )
-
-# ================= SLASH COMMAND =================
-
-@bot.tree.command(name="setwegoo", description="ตั้งค่าระบบ Welcome / Goodbye")
-async def setwegoo(interaction: discord.Interaction):
-
-    embed = discord.Embed(
-        title="⚙️ ระบบต้อนรับ / ออก",
-        description="กดปุ่มด้านล่างเพื่อเริ่มตั้งค่า",
-        color=discord.Color.blue()
-    )
+    save_data(data)
 
     await interaction.response.send_message(
-        embed=embed,
-        view=SetupView(),
+        f"✅ ตั้งค่า Welcome เรียบร้อย ส่งที่ {channel.mention}",
         ephemeral=False
     )
 
-# ================= EVENT =================
+# ================= GOODBYE =================
+
+@bot.tree.command(name="goodbye", description="ตั้งค่าข้อความลา")
+@app_commands.describe(
+    message="ข้อความลา (ใช้ {user})",
+    channel="เลือกห้องที่จะส่ง"
+)
+async def goodbye(interaction: discord.Interaction, message: str, channel: discord.TextChannel):
+
+    if not await is_authorized(interaction):
+        return await interaction.response.send_message(
+            "❌ ต้องอยู่ในดิสหลักและเป็นแอดมินของเซิร์ฟเวอร์นี้",
+            ephemeral=True
+        )
+
+    guild_id = str(interaction.guild.id)
+
+    if guild_id not in data:
+        data[guild_id] = {}
+
+    data[guild_id]["goodbye"] = {
+        "message": message,
+        "channel_id": channel.id
+    }
+
+    save_data(data)
+
+    await interaction.response.send_message(
+        f"✅ ตั้งค่า Goodbye เรียบร้อย ส่งที่ {channel.mention}",
+        ephemeral=False
+    )
+
+# ================= EVENTS =================
 
 @bot.event
 async def on_member_join(member):
+
     guild_id = str(member.guild.id)
 
     if guild_id in data and "welcome" in data[guild_id]:
         msg_data = data[guild_id]["welcome"]
-        channel = bot.get_channel(int(msg_data["channel_id"]))
+        channel = bot.get_channel(msg_data["channel_id"])
 
         if channel:
             message = msg_data["message"].replace("{user}", member.mention)
             await channel.send(message)
 
-
 @bot.event
 async def on_member_remove(member):
+
     guild_id = str(member.guild.id)
 
     if guild_id in data and "goodbye" in data[guild_id]:
         msg_data = data[guild_id]["goodbye"]
-        channel = bot.get_channel(int(msg_data["channel_id"]))
+        channel = bot.get_channel(msg_data["channel_id"])
 
         if channel:
             message = msg_data["message"].replace("{user}", member.mention)
