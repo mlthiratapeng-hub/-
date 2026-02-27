@@ -29,98 +29,94 @@ verification_data = {}
 welcome_settings = {}
 goodbye_settings = {}
 
-# ================= MODAL =================
+# ================= MAIN MENU =================
 
-class WelcomeModal(discord.ui.Modal, title="ตั้งค่าข้อความต้อนรับ"):
+class MainMenuView(discord.ui.View):
 
-    message = discord.ui.TextInput(
-        label="ข้อความต้อนรับ",
-        placeholder="พิมพ์ข้อความที่ต้องการ...",
-        style=discord.TextStyle.paragraph,
-        required=True,
-        max_length=1000
+    @discord.ui.button(
+        label="เลือกรูปแบบการทำงาน...",
+        style=discord.ButtonStyle.secondary
     )
+    async def open_menu(self, interaction: discord.Interaction, button: discord.ui.Button):
 
-    image_url = discord.ui.TextInput(
-        label="ลิงก์รูปภาพ (ไม่ใส่ก็ได้)",
-        placeholder="https://...",
-        required=False
-    )
+        if not interaction.user.guild_permissions.administrator:
+            return await interaction.response.send_message(
+                "❌ เฉพาะแอดมินเท่านั้น",
+                ephemeral=True
+            )
 
-    async def on_submit(self, interaction: discord.Interaction):
-
-        welcome_settings[interaction.guild.id] = {
-            "message": self.message.value,
-            "image": self.image_url.value
-        }
-
-        await interaction.response.send_message(
-            "✅ บันทึก Welcome เรียบร้อย",
-            ephemeral=True
+        await interaction.response.edit_message(
+            content="เลือกโหมดด้านล่าง",
+            view=ModeSelectView()
         )
 
 
-class GoodbyeModal(discord.ui.Modal, title="ตั้งค่าข้อความลาจาก"):
+# ================= MODE SELECT =================
 
-    message = discord.ui.TextInput(
-        label="ข้อความลาจาก",
-        style=discord.TextStyle.paragraph,
-        required=True
-    )
+class ModeSelectView(discord.ui.View):
 
-    image_url = discord.ui.TextInput(
-        label="ลิงก์รูปภาพ (ไม่ใส่ก็ได้)",
-        required=False
-    )
+    def __init__(self):
+        super().__init__(timeout=120)
+        self.selected_mode = None
 
-    async def on_submit(self, interaction: discord.Interaction):
-
-        goodbye_settings[interaction.guild.id] = {
-            "message": self.message.value,
-            "image": self.image_url.value
-        }
-
-        await interaction.response.send_message(
-            "✅ บันทึก Goodbye เรียบร้อย",
-            ephemeral=True
-        )
-
-# ================= VIEW =================
-
-class SetupView(discord.ui.View):
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message(
+                "❌ เฉพาะแอดมินเท่านั้น",
+                ephemeral=True
+            )
+            return False
+        return True
 
     @discord.ui.button(label="Welcome", style=discord.ButtonStyle.green)
     async def welcome_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(WelcomeModal())
+        self.selected_mode = "welcome"
+        await interaction.response.send_message("เลือก Welcome แล้ว", ephemeral=True)
 
     @discord.ui.button(label="Goodbye", style=discord.ButtonStyle.red)
     async def goodbye_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(GoodbyeModal())
+        self.selected_mode = "goodbye"
+        await interaction.response.send_message("เลือก Goodbye แล้ว", ephemeral=True)
+
+    @discord.ui.button(label="✅ รัน", style=discord.ButtonStyle.success)
+    async def run_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+        if not self.selected_mode:
+            return await interaction.response.send_message(
+                "⚠️ กรุณาเลือกโหมดก่อน",
+                ephemeral=True
+            )
+
+        if self.selected_mode == "welcome":
+            await interaction.response.send_modal(WelcomeModal())
+        else:
+            await interaction.response.send_modal(GoodbyeModal())
+
+    @discord.ui.button(label="❌ ยกเลิกการรัน", style=discord.ButtonStyle.danger)
+    async def cancel_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(
+            content="❌ ยกเลิกเรียบร้อย",
+            view=None
+        )
 
 # ================= SLASH =================
 
 @bot.tree.command(
     name="setwegoo",
-    description="ตั้งค่าระบบต้อนรับ / ลาจาก"
+    description="ตั้งค่าระบบต้อนรับ / ออก"
 )
 async def setwegoo(interaction: discord.Interaction):
 
-    if not interaction.user.guild_permissions.administrator:
-        return await interaction.response.send_message(
-            "❌ ต้องเป็นแอดมินเท่านั้น",
-            ephemeral=True
-        )
-
     embed = discord.Embed(
         title="⚙️ ระบบต้อนรับ / ออก",
-        description="เลือกโหมดด้านล่าง",
+        description="กดปุ่มด้านล่างเพื่อเริ่มตั้งค่า",
         color=discord.Color.blue()
     )
 
     await interaction.response.send_message(
         embed=embed,
-        view=SetupView(),
-        ephemeral=True
+        view=MainMenuView(),
+        ephemeral=False  # ทุกคนเห็น
     )
 
 # ================= JOIN / LEAVE =================
