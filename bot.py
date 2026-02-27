@@ -22,30 +22,6 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 song_queues = {}
 verification_data = {}
 
-import discord
-from discord import app_commands
-from discord.ext import commands
-import yt_dlp
-import asyncio
-import os
-import random
-from urllib.parse import urlparse
-from dotenv import load_dotenv
-
-load_dotenv()
-TOKEN = os.getenv("TOKEN")
-
-PROMO_IMAGE = "https://cdn.discordapp.com/attachments/1476624074921738467/1476892902880706691/77a78e76e8b70493bb8615f5b06e36f7.gif"
-
-LINK_CHANNEL_ID = 1476914330854490204
-REQUIRED_GUILD_ID = 1476624073990738022
-
-intents = discord.Intents.all()
-bot = commands.Bot(command_prefix="!", intents=intents)
-
-song_queues = {}
-verification_data = {}
-
 # ================= NEW STORAGE =================
 welcome_settings = {}
 goodbye_settings = {}
