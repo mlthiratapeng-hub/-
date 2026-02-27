@@ -34,8 +34,7 @@ def has_required_role(interaction: discord.Interaction):
 async def role_block(interaction: discord.Interaction):
     if not has_required_role(interaction):
         await interaction.response.send_message(
-            "🍅 คุณไม่มียศที่อนุญาตให้ใช้คำสั่งนี้ โปรดเข้าดิสที่หน้าโปรของ
-บอทค่ะ",
+            "🍅 คุณไม่มียศที่อนุญาตให้ใช้คำสั่งนี้ โปรดเข้าดิส",
             ephemeral=True
         )
         return False
