@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 TOKEN = os.getenv("TOKEN")
 
-PROMO_IMAGE = "https://i.imgur.com/yourimage.png"  # ใส่ลิงก์รูปมึง
+PROMO_IMAGE = "https://cdn.discordapp.com/attachments/1476624074921738467/1476892902880706691/77a78e76e8b70493bb8615f5b06e36f7.gif?ex=69a2c733&is=69a175b3&hm=6ec1181f621b889b89a76a5bee43d6a94877d4e7e59e401c92383427b736f1e7&"
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
