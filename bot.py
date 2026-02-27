@@ -127,11 +127,14 @@ class VerifyModal(discord.ui.Modal):
         super().__init__(title="ยืนยันตัวตนด้วยเลขสุ่ม")
         self.guild_id = guild_id
 
-        data = verification_data.get(guild_id)
-        code_display = str(data["code"]) if data else "หมดเวลาแล้ว"
+        # 🔥 สุ่มใหม่ทุกครั้งที่เปิด Modal
+        code = random.randint(100000, 999999)
+
+        # อัปเดตโค้ดล่าสุดเก็บไว้
+        verification_data[guild_id]["code"] = code
 
         self.code_input = discord.ui.TextInput(
-            label=f"กรอกรหัส: {code_display}",
+            label=f"กรอกรหัส: {code}",
             placeholder="ใส่ตัวเลขด้านบน",
             required=True
         )
@@ -141,21 +144,18 @@ class VerifyModal(discord.ui.Modal):
         data = verification_data.get(self.guild_id)
 
         if not data:
-            return await interaction.response.send_message("🦞 หมดเวลาแล้ว", ephemeral=True)
-
-        if time.time() > data["expire"]:
-            del verification_data[self.guild_id]
-            return await interaction.response.send_message("🥩 เลขหมดอายุแล้ว", ephemeral=True)
+            return await interaction.response.send_message("ระบบยังไม่ถูกสร้าง", ephemeral=True)
 
         if self.code_input.value == str(data["code"]):
             role = interaction.guild.get_role(data["role_id"])
             if role:
                 await interaction.user.add_roles(role)
-                await interaction.response.send_message("🍐 ยืนยันสำเร็จ", ephemeral=True)
+                await interaction.response.send_message("ยืนยันสำเร็จ", ephemeral=True)
             else:
-                await interaction.response.send_message("🍑 ไม่พบยศ", ephemeral=True)
+                await interaction.response.send_message("ไม่พบยศ", ephemeral=True)
         else:
-            await interaction.response.send_message("🍒 เลขไม่ถูกต้อง", ephemeral=True)
+            await interaction.response.send_message("เลขไม่ถูกต้อง", ephemeral=True)
+
 
 class VerifyView(discord.ui.View):
     def __init__(self, guild_id):
@@ -166,6 +166,7 @@ class VerifyView(discord.ui.View):
     async def verify(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(VerifyModal(self.guild_id))
 
+
 @bot.tree.command(name="vasvex", description="สร้างระบบยืนยันตัวตน")
 @app_commands.describe(channel="ห้องที่จะส่ง", role="ยศที่จะให้")
 async def vasvex(interaction: discord.Interaction, channel: discord.TextChannel, role: discord.Role):
@@ -175,30 +176,20 @@ async def vasvex(interaction: discord.Interaction, channel: discord.TextChannel,
         return await interaction.followup.send("ต้องเป็นแอดมินเท่านั้น")
 
     guild_id = interaction.guild.id
-    now = time.time()
 
-    # ถ้ามีโค้ดอยู่และยังไม่หมดเวลา → ไม่สุ่มใหม่
-    if guild_id in verification_data:
-        existing = verification_data[guild_id]
-        if now < existing["expire"]:
-            return await interaction.followup.send("🐝 มีรหัสที่ยังไม่หมดอายุอยู่")
-
-    # สุ่มใหม่ 6 หลัก
-    code = random.randint(100000, 999999)
-
+    # สร้างระบบครั้งเดียว
     verification_data[guild_id] = {
-        "code": code,
-        "role_id": role.id,
-        "expire": now + 60
+        "code": None,
+        "role_id": role.id
     }
 
     embed = promo_embed(
         "🔐 ระบบยืนยันตัวตน",
-        "กดปุ่มด้านล่างเพื่อยืนยันตัวตน\nรหัสจะหมดอายุใน 1 นาที"
+        "กดปุ่มด้านล่างเพื่อรับรหัสใหม่ทุกครั้ง"
     )
 
     await channel.send(embed=embed, view=VerifyView(guild_id))
-    await interaction.followup.send("🥬 สร้างระบบยืนยันตัวตนแล้ว")
+    await interaction.followup.send("สร้างระบบยืนยันตัวตนแล้ว")
 
 # ================= READY =================
 
