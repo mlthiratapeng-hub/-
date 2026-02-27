@@ -26,103 +26,94 @@ verification_data = {}
 welcome_settings = {}
 goodbye_settings = {}
 
-# ================= SELECT MODE =================
+# ---------- MODAL ----------
+class WelcomeModal(discord.ui.Modal, title="ตั้งค่าข้อความต้อนรับ"):
 
-class ModeSelect(discord.ui.Select):
-    def __init__(self, guild_id):
-        self.guild_id = guild_id
+    message = discord.ui.TextInput(
+        label="📁ข้อความต้อนรับ",
+        placeholder="🗯️พิมพ์ข้อความที่ต้องการ...",
+        style=discord.TextStyle.paragraph,
+        required=True,
+        max_length=1000
+    )
 
-        options = [
-            discord.SelectOption(label="Welcome", value="welcome"),
-            discord.SelectOption(label="Goodbye", value="goodbye"),
-        ]
+    image_url = discord.ui.TextInput(
+        label="💾ลิงก์รูปภาพ (ไม่ใส่ก็ได้)",
+        placeholder="https://...",
+        required=False
+    )
 
-        super().__init__(
-            placeholder="เลือกรูปแบบการทำงานบอท...",
-            min_values=1,
-            max_values=1,
-            options=options
+    async def on_submit(self, interaction: discord.Interaction):
+        embed = discord.Embed(
+            description=self.message.value,
+            color=discord.Color.green()
         )
 
-    async def callback(self, interaction: discord.Interaction):
-
-        if not interaction.user.guild_permissions.administrator:
-            return await interaction.response.send_message("💢 แอดมินเท่านั้น", ephemeral=True)
-
-        mode = self.values[0]
-
-        if mode == "welcome":
-            welcome_settings[self.guild_id] = True
-        else:
-            goodbye_settings[self.guild_id] = True
+        if self.image_url.value:
+            embed.set_image(url=self.image_url.value)
 
         await interaction.response.send_message(
-            f"🍞 ตั้งค่า {mode} เรียบร้อย",
+            "📁 ตั้งค่าข้อความ Welcome เรียบร้อยแล้ว",
+            embed=embed,
             ephemeral=True
         )
 
 
-# ================= RUN BUTTON =================
+class GoodbyeModal(discord.ui.Modal, title="ตั้งค่าข้อความลาก่อน"):
 
-class RunView(discord.ui.View):
-    def __init__(self, guild_id):
-        super().__init__(timeout=None)
-        self.guild_id = guild_id
+    message = discord.ui.TextInput(
+        label="📁ข้อความลาก่อน",
+        style=discord.TextStyle.paragraph,
+        required=True
+    )
 
-    @discord.ui.button(label="💾 รันระบบ", style=discord.ButtonStyle.success)
-    async def run_system(self, interaction: discord.Interaction, button: discord.ui.Button):
+    image_url = discord.ui.TextInput(
+        label="💾ลิงก์รูปภาพ (ไม่ใส่ก็ได้)",
+        required=False
+    )
 
-        if not interaction.user.guild_permissions.administrator:
-            return await interaction.response.send_message("💢 แอดมินเท่านั้น", ephemeral=True)
+    async def on_submit(self, interaction: discord.Interaction):
+        embed = discord.Embed(
+            description=self.message.value,
+            color=discord.Color.red()
+        )
+
+        if self.image_url.value:
+            embed.set_image(url=self.image_url.value)
 
         await interaction.response.send_message(
-            "🍀 ระบบกำลังรัน...",
+            "📁 ตั้งค่า Goodbye เรียบร้อยแล้ว",
+            embed=embed,
             ephemeral=True
         )
 
 
-# ================= MAIN PANEL VIEW =================
+# ---------- VIEW ----------
+class SetupView(discord.ui.View):
+    @discord.ui.button(label="Welcome", style=discord.ButtonStyle.green)
+    async def welcome_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(WelcomeModal())
 
-class MainPanel(discord.ui.View):
-    def __init__(self, guild_id):
-        super().__init__(timeout=None)
-        self.add_item(ModeSelect(guild_id))
-        self.add_item(RunView(guild_id).children[0])
+    @discord.ui.button(label="Goodbye", style=discord.ButtonStyle.red)
+    async def goodbye_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(GoodbyeModal())
 
 
-# ================= SLASH COMMAND =================
-
-@bot.tree.command(name="setwegoo", description="ตั้งค่าระบบ Welcome / Goodbye")
+# ---------- SLASH COMMAND ----------
+@bot.tree.command(name="setwegoo")
 async def setwegoo(interaction: discord.Interaction):
 
-    # ต้องเป็นแอดมินเซิร์ฟที่กำลังใช้งาน
-    if not interaction.user.guild_permissions.administrator:
-        return await interaction.response.send_message("💢 ต้องเป็นแอดมินเซิร์ฟนี้", ephemeral=True)
-
-    # ต้องอยู่ในเซิร์ฟ REQUIRED_GUILD_ID ก่อน
-    required_guild = bot.get_guild(REQUIRED_GUILD_ID)
-    member = required_guild.get_member(interaction.user.id) if required_guild else None
-
-    if not member:
+    # จำกัดเฉพาะเซิร์ฟเวอร์ที่ต้องการ
+    if interaction.guild.id != 1476624073990738022:
         return await interaction.response.send_message(
-            "💢 คุณต้องเข้าร่วมเซิร์ฟที่กำหนดก่อนถึงใช้คำสั่งนี้ได้",
+            "💢 คำสั่งนี้ใช้ได้เฉพาะคนที่อยู่ในเซิฟเวอร์บอท",
             ephemeral=True
         )
 
     embed = discord.Embed(
         title="⚙️ ระบบต้อนรับ / ออก",
-        description="เลือกโหมดด้านล่าง แล้วกดรันระบบ",
-        color=0x2f3136
-    )
-
-    embed.set_footer(text=f"Server: {interaction.guild.name}")
-
-    view = MainPanel(interaction.guild.id)
-
-    await interaction.response.send_message(
-        embed=embed,
-        view=view,
-        ephemeral=False  # ทุกคนเห็น
+        description="📁เลือกโหมดด้านล่าง",
+        color=discord.Color.blue()
     )
 
 # ================= EMBED =================
