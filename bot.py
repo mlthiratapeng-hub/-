@@ -80,6 +80,25 @@ class WelcomePanelView(discord.ui.View):
         goodbye_settings.pop(self.guild_id, None)
         await interaction.response.send_message("💢 ปิดระบบ Goodbye แล้ว", ephemeral=False)
 
+@bot.tree.command(name="welcome-panel", description="แผงควบคุมระบบ Welcome/Goodbye")
+async def welcome_panel(interaction: discord.Interaction):
+
+    embed = discord.Embed(
+        title="⚙️ ระบบต้อนรับ / ออก",
+        description="กดปุ่มด้านล่างเพื่อเปิดหรือปิดระบบ",
+        color=0x2f3136
+    )
+
+    embed.set_footer(text=f"Server: {interaction.guild.name}")
+
+    view = WelcomePanelView(interaction.guild.id)
+
+    await interaction.response.send_message(
+        embed=embed,
+        view=view,
+        ephemeral=False  # ทุกคนเห็น
+    )
+
 # ================= EMBED =================
 
 def promo_embed(title, desc):
