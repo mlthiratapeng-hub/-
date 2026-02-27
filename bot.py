@@ -29,6 +29,65 @@ def promo_embed(title, desc):
     embed.set_image(url=PROMO_IMAGE)
     return embed
 
+def check_link_safety(url):
+    parsed = urlparse(url)
+    score = 100
+
+    if not parsed.scheme or not parsed.netloc:
+        return 0, "ลิงก์ไม่ถูกต้อง"
+
+    # ไม่ใช่ https ลดคะแนน
+    if parsed.scheme != "https":
+        score -= 30
+
+    # คำต้องสงสัย
+    suspicious_words = [
+        "login", "verify", "account", "update",
+        "free", "gift", "nitro", "steam",
+        "bonus", "claim", "secure"
+    ]
+
+    for word in suspicious_words:
+        if word in url.lower():
+            score -= 10
+
+    # โดเมนยาวผิดปกติ
+    if len(parsed.netloc) > 30:
+        score -= 10
+
+    # มี @ ในลิงก์ (เทคนิค phishing)
+    if "@" in url:
+        score -= 20
+
+    if score < 0:
+        score = 0
+
+    if score >= 80:
+        status = "🍀 ปลอดภัยสูง"
+    elif score >= 50:
+        status = "🍊 เสี่ยงปานกลาง"
+    else:
+        status = "🍎 เสี่ยงสูง"
+
+    return score, status
+
+
+@bot.command(name="link")
+async def link_check(ctx, url: str):
+    score, status = check_link_safety(url)
+
+    embed = discord.Embed(
+        title="🔍 ผลการตรวจสอบลิงก์",
+        color=0x2f3136
+    )
+
+    embed.add_field(name="🔗 ลิงก์", value=url, inline=False)
+    embed.add_field(name="📊 ความปลอดภัย", value=f"{score}%", inline=True)
+    embed.add_field(name="📌 สถานะ", value=status, inline=True)
+    embed.set_image(url=PROMO_IMAGE)
+
+    await ctx.send(embed=embed)
+
 # ================= MUSIC SYSTEM =================
 
 async def play_next(guild):
