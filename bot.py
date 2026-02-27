@@ -87,7 +87,6 @@ class GoodbyeModal(discord.ui.Modal, title="ตั้งค่าข้อคว
             ephemeral=True
         )
 
-
 # ---------- VIEW ----------
 class SetupView(discord.ui.View):
     @discord.ui.button(label="Welcome", style=discord.ButtonStyle.green)
