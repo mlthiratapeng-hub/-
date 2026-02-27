@@ -103,7 +103,7 @@ class SetupView(discord.ui.View):
 async def setwegoo(interaction: discord.Interaction):
 
     # จำกัดเฉพาะเซิร์ฟเวอร์ที่ต้องการ
-    if interaction.guild.id != 1476624073990738022:
+    if interaction.guild.id != REQUIRED_GUILD_ID:
         return await interaction.response.send_message(
             "💢 คำสั่งนี้ใช้ได้เฉพาะคนที่อยู่ในเซิฟเวอร์บอท",
             ephemeral=True
