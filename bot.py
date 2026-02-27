@@ -99,7 +99,7 @@ class SetupView(discord.ui.View):
 
 
 # ---------- SLASH COMMAND ----------
-@bot.tree.command(name="setwegoo")
+@bot.tree.command(name="setwegoo", description="📁wecomegoodbey")
 async def setwegoo(interaction: discord.Interaction):
 
     # จำกัดเฉพาะเซิร์ฟเวอร์ที่ต้องการ
