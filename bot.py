@@ -4,26 +4,184 @@ from discord.ext import commands
 import yt_dlp
 import asyncio
 import os
-import random
 from urllib.parse import urlparse
 from dotenv import load_dotenv
+from datetime import timedelta
 
 load_dotenv()
 TOKEN = os.getenv("TOKEN")
 
-intents = discord.Intents.default()
-intents.members = True
-
 PROMO_IMAGE = "https://cdn.discordapp.com/attachments/1476624074921738467/1476892902880706691/77a78e76e8b70493bb8615f5b06e36f7.gif"
 
-LINK_CHANNEL_ID = 1476914330854490204
 REQUIRED_GUILD_ID = 1476624073990738022
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+# ================= DATA =================
+
 song_queues = {}
 verification_data = {}
+
+protection_settings = {}
+user_warnings = {}
+spam_tracker = {}
+whitelist_users = {}
+log_channels = {}
+role_action_tracker = {}
+
+# ================= EMBED =================
+
+def promo_embed(title, desc):
+    embed = discord.Embed(title=title, description=desc, color=0x2f3136)
+    embed.set_image(url=PROMO_IMAGE)
+    return embed
+
+# ================= ADMIN CHECK =================
+
+async def check_admin_permission(interaction):
+    if not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message("💢 ต้องเป็นแอดมินเท่านั้น", ephemeral=True)
+        return False
+
+    required_guild = bot.get_guild(REQUIRED_GUILD_ID)
+    if not required_guild:
+        await interaction.response.send_message("🥩 ไม่พบดิสหลัก", ephemeral=True)
+        return False
+
+    if not required_guild.get_member(interaction.user.id):
+        await interaction.response.send_message("🍓 ต้องอยู่ดิสหลักก่อน", ephemeral=True)
+        return False
+
+    return True
+
+# ================= PROTECTION COMMANDS =================
+
+@bot.tree.command(name="nolink", description="🔗 เปิดระบบกันลิงก์")
+async def nolink(interaction: discord.Interaction):
+    if not await check_admin_permission(interaction): return
+    protection_settings.setdefault(interaction.guild.id, {})["nolink"] = True
+    await interaction.response.send_message("📁 เปิดกันลิงก์แล้ว", ephemeral=True)
+
+@bot.tree.command(name="nospam", description="🍎 เปิดระบบกันสแปม")
+async def nospam(interaction: discord.Interaction):
+    if not await check_admin_permission(interaction): return
+    protection_settings.setdefault(interaction.guild.id, {})["nospam"] = True
+    await interaction.response.send_message("📁 เปิดกันสแปมแล้ว", ephemeral=True)
+
+@bot.tree.command(name="nonuke", description="💣 เปิดระบบกันนุ๊ก")
+async def nonuke(interaction: discord.Interaction):
+    if not await check_admin_permission(interaction): return
+    protection_settings.setdefault(interaction.guild.id, {})["nonuke"] = True
+    await interaction.response.send_message("📁 เปิดกันนุ๊กแล้ว", ephemeral=True)
+
+@bot.tree.command(name="nouser", description="👑 ยกเว้นผู้ใช้")
+async def nouser(interaction: discord.Interaction, member: discord.Member):
+    if not await check_admin_permission(interaction): return
+    whitelist_users.setdefault(interaction.guild.id, set()).add(member.id)
+    await interaction.response.send_message("🍀 เพิ่มเข้า whitelist แล้ว", ephemeral=True)
+
+@bot.tree.command(name="rewind", description="🔄 เอาผู้ใช้ออกจาก whitelist")
+async def rewind(interaction: discord.Interaction, member: discord.Member):
+    if not await check_admin_permission(interaction): return
+    whitelist_users.setdefault(interaction.guild.id, set()).discard(member.id)
+    await interaction.response.send_message("🍗 กลับมาตรวจจับแล้ว", ephemeral=True)
+
+@bot.tree.command(name="logall", description="📜 เปิดระบบบันทึกกิจกรรมทั้งหมด")
+async def logall(interaction: discord.Interaction):
+    if not interaction.user.guild_permissions.administrator:
+        return await interaction.response.send_message("🍄 แอดมินเท่านั้น", ephemeral=True)
+    log_channels[interaction.guild.id] = interaction.channel.id
+    await interaction.response.send_message("🍏 เปิดระบบ log แล้ว", ephemeral=True)
+
+# ================= MESSAGE MONITOR =================
+
+@bot.event
+async def on_message(message):
+    if message.author.bot or not message.guild:
+        return
+
+    guild_id = message.guild.id
+
+    # LOG SYSTEM
+    if guild_id in log_channels:
+        log_channel = bot.get_channel(log_channels[guild_id])
+        if log_channel:
+            await log_channel.send(f"📝 {message.author} : {message.content}")
+
+    # WHITELIST
+    if guild_id in whitelist_users and message.author.id in whitelist_users[guild_id]:
+        await bot.process_commands(message)
+        return
+
+    # ========== NO LINK ==========
+    if protection_settings.get(guild_id, {}).get("nolink"):
+        if "http://" in message.content or "https://" in message.content:
+            user_warnings.setdefault(guild_id, {}).setdefault(message.author.id, 0)
+            user_warnings[guild_id][message.author.id] += 1
+
+            warn = user_warnings[guild_id][message.author.id]
+
+            if warn >= 3:
+                until = discord.utils.utcnow() + timedelta(days=3)
+                await message.author.timeout(until)
+                await message.channel.send(f"🦞 {message.author.mention} หมดเวลา 3 วัน")
+            else:
+                await message.channel.send(f"💢 เตือนครั้งที่ {warn}")
+            return
+
+    # ========== NO SPAM ==========
+    if protection_settings.get(guild_id, {}).get("nospam"):
+        spam_tracker.setdefault(guild_id, {}).setdefault(message.author.id, [])
+        now = asyncio.get_event_loop().time()
+        spam_tracker[guild_id][message.author.id].append(now)
+
+        spam_tracker[guild_id][message.author.id] = [
+            t for t in spam_tracker[guild_id][message.author.id] if now - t <= 5
+        ]
+
+        if len(spam_tracker[guild_id][message.author.id]) >= 5:
+            user_warnings.setdefault(guild_id, {}).setdefault(message.author.id, 0)
+            user_warnings[guild_id][message.author.id] += 1
+
+            if user_warnings[guild_id][message.author.id] >= 3:
+                await message.guild.ban(message.author, reason="Spam detected")
+                await message.channel.send("🔨 ถูกแบน (Spam)")
+            else:
+                await message.channel.send("🌼 หยุดสแปม")
+            return
+
+    await bot.process_commands(message)
+
+# ================= ANTI NUKE =================
+
+@bot.event
+async def on_guild_role_update(before, after):
+    guild_id = after.guild.id
+
+    if not protection_settings.get(guild_id, {}).get("nonuke"):
+        return
+
+    async for entry in after.guild.audit_logs(limit=1, action=discord.AuditLogAction.role_update):
+        user = entry.user
+
+        if guild_id in whitelist_users and user.id in whitelist_users[guild_id]:
+            return
+
+        role_action_tracker.setdefault(guild_id, {}).setdefault(user.id, [])
+        now = asyncio.get_event_loop().time()
+        role_action_tracker[guild_id][user.id].append(now)
+
+        role_action_tracker[guild_id][user.id] = [
+            t for t in role_action_tracker[guild_id][user.id] if now - t <= 5
+        ]
+
+        if len(role_action_tracker[guild_id][user.id]) >= 4:
+            await after.guild.ban(user, reason="Nuke detected")
+            if guild_id in log_channels:
+                log_channel = bot.get_channel(log_channels[guild_id])
+                if log_channel:
+                    await log_channel.send(f"💣 {user} ถูกแบน (Nuke)")
 
 # ================= EMBED =================
 
