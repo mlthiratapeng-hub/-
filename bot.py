@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 TOKEN = os.getenv("TOKEN")
 
-PROMO_IMAGE = "https://cdn.discordapp.com/attachments/1476624074921738467/1476892902880706691/77a78e76e8b70493bb8615f5b06e36f7.gif"
+PROMO_IMAGE = "https://discord.com/channels/1476624073990738022/1476898781290037409/1476919470978240565"
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
