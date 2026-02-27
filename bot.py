@@ -5,11 +5,9 @@ import wavelink
 import os
 import random
 import time
-from gtts import gTTS
-from io import BytesIO
 
 TOKEN = os.getenv("TOKEN")
-LAVALINK_URL = os.getenv("LAVALINK_URL")
+LAVALINK_URL = os.getenv("LAVALINK_URL")  # https://xxxx.up.railway.app
 LAVALINK_PASSWORD = os.getenv("LAVALINK_PASSWORD")
 
 intents = discord.Intents.default()
@@ -39,68 +37,33 @@ async def on_ready():
     print("Bot Ready")
 
 
-class Player(wavelink.Player):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.queue = []
+# ================= EMBED BUILDER =================
 
-    async def play_next(self):
-        if self.queue:
-            next_track = self.queue.pop(0)
-            await self.play(next_track)
+def music_embed(title, description, thumbnail=None, duration=None):
+    embed = discord.Embed(
+        title=title,
+        description=description,
+        color=discord.Color.purple()
+    )
+
+    if thumbnail:
+        embed.set_thumbnail(url=thumbnail)
+
+    if duration:
+        embed.add_field(name="ความยาว", value=duration)
+
+    embed.set_footer(text="VASVEX Music System")
+    return embed
 
 
-@bot.listen("on_wavelink_track_end")
-async def on_track_end(payload: wavelink.TrackEndEventPayload):
-    player: Player = payload.player
-    await player.play_next()
+def format_time(ms):
+    seconds = int(ms / 1000)
+    minutes = seconds // 60
+    seconds = seconds % 60
+    return f"{minutes:02}:{seconds:02}"
 
-# ================= JOIN =================
 
-@bot.tree.command(name="join", description="ให้บอทเข้าห้องเสียงของคุณ")
-async def join(interaction: discord.Interaction):
-
-    if not interaction.user.voice:
-        return await interaction.response.send_message(
-            "คุณต้องอยู่ห้องเสียงก่อน ❌",
-            ephemeral=True
-        )
-
-    channel = interaction.user.voice.channel
-
-    try:
-        player: Player = interaction.guild.voice_client
-
-        if player:
-            await player.move_to(channel)
-        else:
-            await channel.connect(cls=Player)
-
-        await interaction.response.send_message("เข้าห้องเสียงแล้ว ✅")
-
-    except Exception as e:
-        await interaction.response.send_message(
-            f"เกิดข้อผิดพลาด: {e}",
-            ephemeral=True
-        )
-
-# ================= LEAVE =================
-
-@bot.tree.command(name="leave", description="ให้บอทออกจากห้องเสียง")
-async def leave(interaction: discord.Interaction):
-
-    player: Player = interaction.guild.voice_client
-
-    if not player:
-        return await interaction.response.send_message(
-            "บอทไม่ได้อยู่ในห้องเสียง ❌",
-            ephemeral=True
-        )
-
-    await player.disconnect()
-    await interaction.response.send_message("ออกจากห้องเสียงแล้ว ✅")
-
-# ================= PLAY =================
+# ================= PLAY (AUTO JOIN) =================
 
 @bot.tree.command(name="play", description="เล่นเพลงจากชื่อหรือ URL")
 @app_commands.describe(search="ชื่อเพลงหรือ URL")
@@ -108,106 +71,113 @@ async def play(interaction: discord.Interaction, search: str):
 
     if not interaction.user.voice:
         return await interaction.response.send_message(
-            "คุณต้องอยู่ห้องเสียงก่อน ❌",
+            embed=music_embed("❌ ข้อผิดพลาด", "คุณต้องอยู่ห้องเสียงก่อน"),
             ephemeral=True
         )
 
-    if not interaction.guild.voice_client:
-        await interaction.user.voice.channel.connect(cls=Player)
+    player: wavelink.Player = interaction.guild.voice_client
 
-    player: Player = interaction.guild.voice_client
+    if not player:
+        player = await interaction.user.voice.channel.connect(cls=wavelink.Player)
 
     tracks = await wavelink.Playable.search(search)
 
     if not tracks:
         return await interaction.response.send_message(
-            "หาเพลงไม่เจอ ❌",
+            embed=music_embed("❌ ไม่พบเพลง", "ลองค้นหาใหม่อีกครั้ง"),
             ephemeral=True
         )
 
     track = tracks[0]
 
     if player.playing:
-        player.queue.append(track)
-        await interaction.response.send_message(
-            f"เพิ่มเข้าคิว: {track.title} 🎵"
+        await player.queue.put_wait(track)
+
+        embed = music_embed(
+            "🎶 เพิ่มเข้าคิวแล้ว",
+            f"**{track.title}**",
+            thumbnail=track.artwork
         )
+
+        await interaction.response.send_message(embed=embed)
+
     else:
         await player.play(track)
-        await interaction.response.send_message(
-            f"กำลังเล่น: {track.title} 🎶"
+
+        embed = music_embed(
+            "🎵 กำลังเล่นเพลง",
+            f"**{track.title}**",
+            thumbnail=track.artwork,
+            duration=format_time(track.length)
         )
+
+        await interaction.response.send_message(embed=embed)
+
 
 # ================= QUEUE =================
 
 @bot.tree.command(name="queue", description="ดูคิวเพลง")
 async def queue(interaction: discord.Interaction):
 
-    player: Player = interaction.guild.voice_client
+    player: wavelink.Player = interaction.guild.voice_client
 
-    if not player:
+    if not player or not player.queue:
         return await interaction.response.send_message(
-            "บอทยังไม่ได้เข้าห้องเสียง ❌",
+            embed=music_embed("📜 คิวเพลง", "ไม่มีเพลงในคิว"),
             ephemeral=True
         )
 
-    if not player.queue:
-        return await interaction.response.send_message(
-            "ไม่มีเพลงในคิว ❌",
-            ephemeral=True
-        )
+    upcoming = list(player.queue)[:10]
 
-    msg = "\n".join(
-        [f"{i+1}. {t.title}" for i, t in enumerate(player.queue[:10])]
+    description = "\n".join(
+        [f"{i+1}. {t.title}" for i, t in enumerate(upcoming)]
     )
 
-    await interaction.response.send_message(f"คิวเพลง:\n{msg}")
+    embed = music_embed("📜 คิวเพลง", description)
+    await interaction.response.send_message(embed=embed)
+
 
 # ================= SKIP =================
 
 @bot.tree.command(name="skip", description="ข้ามเพลง")
 async def skip(interaction: discord.Interaction):
 
-    player: Player = interaction.guild.voice_client
+    player: wavelink.Player = interaction.guild.voice_client
 
     if not player or not player.playing:
         return await interaction.response.send_message(
-            "ไม่มีเพลงกำลังเล่น ❌",
+            embed=music_embed("❌ ไม่มีเพลง", "ไม่มีเพลงกำลังเล่น"),
             ephemeral=True
         )
 
-    await player.stop()
-    await interaction.response.send_message("ข้ามเพลงแล้ว ⏭️")
+    await player.skip()
 
-# ================= TTS AUTO =================
+    await interaction.response.send_message(
+        embed=music_embed("⏭️ ข้ามเพลงแล้ว", "กำลังเล่นเพลงถัดไป")
+    )
 
-@bot.event
-async def on_message(message):
 
-    if message.author.bot:
-        return
+# ================= LEAVE =================
 
-    player: Player = message.guild.voice_client
+@bot.tree.command(name="leave", description="ให้บอทออกจากห้องเสียง")
+async def leave(interaction: discord.Interaction):
+
+    player: wavelink.Player = interaction.guild.voice_client
 
     if not player:
-        return
+        return await interaction.response.send_message(
+            embed=music_embed("❌ ไม่อยู่ห้องเสียง", "บอทยังไม่ได้เข้าห้องเสียง"),
+            ephemeral=True
+        )
 
-    if player.playing:
-        return
+    await player.disconnect()
 
-    if message.author.voice and message.author.voice.channel == player.channel:
+    await interaction.response.send_message(
+        embed=music_embed("👋 ออกจากห้องเสียงแล้ว", "เจอกันใหม่")
+    )
 
-        tts = gTTS(message.content, lang="th")
-        fp = BytesIO()
-        tts.write_to_fp(fp)
-        fp.seek(0)
 
-        source = discord.FFmpegPCMAudio(fp, pipe=True)
-        player.play(source)
-
-    await bot.process_commands(message)
-
-# ================= VERIFY =================
+# ================= VERIFY SYSTEM =================
 
 verification_cache = {}
 
@@ -232,7 +202,7 @@ class VerifyModal(discord.ui.Modal):
 
         if not data or time.time() > data["expire"]:
             return await interaction.response.send_message(
-                "โค้ดหมดอายุ ❌",
+                embed=music_embed("❌ โค้ดหมดอายุ", "กรุณากดใหม่อีกครั้ง"),
                 ephemeral=True
             )
 
@@ -240,12 +210,12 @@ class VerifyModal(discord.ui.Modal):
             await interaction.user.add_roles(self.role)
             verification_cache.pop(self.user_id)
             await interaction.response.send_message(
-                "ยืนยันสำเร็จ ✅",
+                embed=music_embed("✅ สำเร็จ", "คุณได้รับยศแล้ว"),
                 ephemeral=True
             )
         else:
             await interaction.response.send_message(
-                "เลขผิด ❌",
+                embed=music_embed("❌ เลขผิด", "ลองใหม่อีกครั้ง"),
                 ephemeral=True
             )
 
@@ -290,5 +260,6 @@ async def vasvex(interaction: discord.Interaction,
 
     await channel.send(embed=embed, view=VerifyView(role))
     await interaction.response.send_message("สร้างแล้ว ✅", ephemeral=True)
+
 
 bot.run(TOKEN)
