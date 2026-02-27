@@ -29,6 +29,7 @@ spam_tracker = {}
 whitelist_users = {}
 log_channels = {}
 role_action_tracker = {}
+channel_delete_tracker = {}
 
 # ================= EMBED =================
 
@@ -57,23 +58,82 @@ async def check_admin_permission(interaction):
 
 # ================= PROTECTION COMMANDS =================
 
-@bot.tree.command(name="nolink", description="🔗 เปิดระบบกันลิงก์")
-async def nolink(interaction: discord.Interaction):
-    if not await check_admin_permission(interaction): return
-    protection_settings.setdefault(interaction.guild.id, {})["nolink"] = True
-    await interaction.response.send_message("📁 เปิดกันลิงก์แล้ว", ephemeral=True)
-
-@bot.tree.command(name="nospam", description="🍎 เปิดระบบกันสแปม")
-async def nospam(interaction: discord.Interaction):
-    if not await check_admin_permission(interaction): return
-    protection_settings.setdefault(interaction.guild.id, {})["nospam"] = True
-    await interaction.response.send_message("📁 เปิดกันสแปมแล้ว", ephemeral=True)
-
 @bot.tree.command(name="nonuke", description="💣 เปิดระบบกันนุ๊ก")
 async def nonuke(interaction: discord.Interaction):
     if not await check_admin_permission(interaction): return
     protection_settings.setdefault(interaction.guild.id, {})["nonuke"] = True
-    await interaction.response.send_message("📁 เปิดกันนุ๊กแล้ว", ephemeral=True)
+    await interaction.response.send_message("💣 เปิดกันนุ๊กแล้ว", ephemeral=True)
+
+# ================= MESSAGE MONITOR =================
+
+@bot.event
+async def on_message(message):
+    if message.author.bot or not message.guild:
+        return
+    await bot.process_commands(message)
+
+# ================= ANTI ROLE NUKE =================
+
+@bot.event
+async def on_guild_role_update(before, after):
+    guild_id = after.guild.id
+
+    if not protection_settings.get(guild_id, {}).get("nonuke"):
+        return
+
+    async for entry in after.guild.audit_logs(limit=1, action=discord.AuditLogAction.role_update):
+        user = entry.user
+
+        if guild_id in whitelist_users and user.id in whitelist_users[guild_id]:
+            return
+
+        role_action_tracker.setdefault(guild_id, {}).setdefault(user.id, [])
+        now = asyncio.get_event_loop().time()
+        role_action_tracker[guild_id][user.id].append(now)
+
+        role_action_tracker[guild_id][user.id] = [
+            t for t in role_action_tracker[guild_id][user.id] if now - t <= 5
+        ]
+
+        if len(role_action_tracker[guild_id][user.id]) >= 4:
+            await after.guild.ban(user, reason="Role Nuke detected")
+
+# ================= 🔥 ANTI CHANNEL DELETE =================
+
+@bot.event
+async def on_guild_channel_delete(channel):
+    guild = channel.guild
+    guild_id = guild.id
+
+    if not protection_settings.get(guild_id, {}).get("nonuke"):
+        return
+
+    async for entry in guild.audit_logs(limit=1, action=discord.AuditLogAction.channel_delete):
+        user = entry.user
+
+        # ข้าม whitelist
+        if guild_id in whitelist_users and user.id in whitelist_users[guild_id]:
+            return
+
+        channel_delete_tracker.setdefault(guild_id, {}).setdefault(user.id, [])
+        now = asyncio.get_event_loop().time()
+        channel_delete_tracker[guild_id][user.id].append(now)
+
+        # เก็บแค่ 5 วิล่าสุด
+        channel_delete_tracker[guild_id][user.id] = [
+            t for t in channel_delete_tracker[guild_id][user.id] if now - t <= 5
+        ]
+
+        # 🔥 ลบ 5 ห้องใน 5 วิ = แบน
+        if len(channel_delete_tracker[guild_id][user.id]) >= 5:
+            await guild.ban(user, reason="Channel Delete Nuke")
+
+            if guild_id in log_channels:
+                log_channel = bot.get_channel(log_channels[guild_id])
+                if log_channel:
+                    await log_channel.send(f"💣 {user} ถูกแบน (ลบห้องรัว)")
+
+        break
 
 @bot.tree.command(name="nouser", description="👑 ยกเว้นผู้ใช้")
 async def nouser(interaction: discord.Interaction, member: discord.Member):
