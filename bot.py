@@ -22,6 +22,190 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 song_queues = {}
 verification_data = {}
 
+import discord
+from discord import app_commands
+from discord.ext import commands
+import yt_dlp
+import asyncio
+import os
+import random
+from urllib.parse import urlparse
+from dotenv import load_dotenv
+
+load_dotenv()
+TOKEN = os.getenv("TOKEN")
+
+PROMO_IMAGE = "https://cdn.discordapp.com/attachments/1476624074921738467/1476892902880706691/77a78e76e8b70493bb8615f5b06e36f7.gif"
+
+LINK_CHANNEL_ID = 1476914330854490204
+REQUIRED_GUILD_ID = 1476624073990738022
+
+intents = discord.Intents.all()
+bot = commands.Bot(command_prefix="!", intents=intents)
+
+song_queues = {}
+verification_data = {}
+
+# ================= NEW STORAGE =================
+welcome_settings = {}
+goodbye_settings = {}
+
+# ================= EMBED =================
+
+def promo_embed(title, desc):
+    embed = discord.Embed(title=title, description=desc, color=0x2f3136)
+    embed.set_image(url=PROMO_IMAGE)
+    return embed
+
+# ================= WELCOME / GOODBYE VIEW =================
+
+class StopWelcomeView(discord.ui.View):
+    def __init__(self, guild_id):
+        super().__init__(timeout=None)
+        self.guild_id = guild_id
+
+    @discord.ui.button(label="🔴 หยุด Welcome", style=discord.ButtonStyle.danger)
+    async def stop_welcome(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not interaction.user.guild_permissions.administrator:
+            return await interaction.response.send_message("💢 แอดมินเท่านั้น", ephemeral=True)
+
+        welcome_settings.pop(self.guild_id, None)
+        await interaction.response.send_message("🗯️ ปิดระบบ Welcome แล้ว", ephemeral=True)
+
+
+class StopGoodbyeView(discord.ui.View):
+    def __init__(self, guild_id):
+        super().__init__(timeout=None)
+        self.guild_id = guild_id
+
+    @discord.ui.button(label="🔴 หยุด Goodbye", style=discord.ButtonStyle.danger)
+    async def stop_goodbye(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not interaction.user.guild_permissions.administrator:
+            return await interaction.response.send_message("💢 แอดมินเท่านั้น", ephemeral=True)
+
+        goodbye_settings.pop(self.guild_id, None)
+        await interaction.response.send_message("💾 ปิดระบบ Goodbye แล้ว", ephemeral=True)
+
+# ================= SET WELCOME =================
+
+@bot.tree.command(name="setwelcome", description="ตั้งค่าข้อความต้อนรับ")
+@app_commands.describe(channel="ห้อง", message="ข้อความ (ใช้ {user} {server})")
+async def setwelcome(interaction: discord.Interaction,
+                     channel: discord.TextChannel,
+                     message: str):
+
+    if not interaction.user.guild_permissions.administrator:
+        return await interaction.response.send_message("💢 ต้องเป็นแอดมิน", ephemeral=True)
+
+    required_guild = bot.get_guild(REQUIRED_GUILD_ID)
+    member = required_guild.get_member(interaction.user.id) if required_guild else None
+
+    if not member:
+        return await interaction.response.send_message("💢 ไม่มีสิทธิ์ใช้คำสั่งนี้", ephemeral=True)
+
+    welcome_settings[interaction.guild.id] = {
+        "channel_id": channel.id,
+        "message": message
+    }
+
+    view = StopWelcomeView(interaction.guild.id)
+
+    await interaction.response.send_message(
+        "🗯️ เปิดระบบ Welcome แล้ว",
+        view=view,
+        ephemeral=True
+    )
+
+# ================= SET GOODBYE =================
+
+@bot.tree.command(name="setgoodbye", description="ตั้งค่าข้อความลา")
+@app_commands.describe(channel="ห้อง", message="ข้อความ (ใช้ {user} {server})")
+async def setgoodbye(interaction: discord.Interaction,
+                     channel: discord.TextChannel,
+                     message: str):
+
+    if not interaction.user.guild_permissions.administrator:
+        return await interaction.response.send_message("💢 ต้องเป็นแอดมิน", ephemeral=True)
+
+    required_guild = bot.get_guild(REQUIRED_GUILD_ID)
+    member = required_guild.get_member(interaction.user.id) if required_guild else None
+
+    if not member:
+        return await interaction.response.send_message("💢 ไม่มีสิทธิ์ใช้คำสั่งนี้", ephemeral=True)
+
+    goodbye_settings[interaction.guild.id] = {
+        "channel_id": channel.id,
+        "message": message
+    }
+
+    view = StopGoodbyeView(interaction.guild.id)
+
+    await interaction.response.send_message(
+        "🗯️ เปิดระบบ Goodbye แล้ว",
+        view=view,
+        ephemeral=True
+    )
+
+# ================= MEMBER JOIN =================
+
+@bot.event
+async def on_member_join(member):
+
+    guild_id = member.guild.id
+
+    if guild_id not in welcome_settings:
+        return
+
+    data = welcome_settings[guild_id]
+    channel = bot.get_channel(data["channel_id"])
+
+    if not channel:
+        return
+
+    msg = data["message"]
+    msg = msg.replace("{user}", member.mention)
+    msg = msg.replace("{server}", member.guild.name)
+
+    embed = discord.Embed(
+        title="📁 สมาชิกใหม่เข้าแล้ว",
+        description=msg,
+        color=0x2f3136
+    )
+
+    embed.set_thumbnail(url=member.display_avatar.url)
+
+    await channel.send(embed=embed)
+
+# ================= MEMBER LEAVE =================
+
+@bot.event
+async def on_member_remove(member):
+
+    guild_id = member.guild.id
+
+    if guild_id not in goodbye_settings:
+        return
+
+    data = goodbye_settings[guild_id]
+    channel = bot.get_channel(data["channel_id"])
+
+    if not channel:
+        return
+
+    msg = data["message"]
+    msg = msg.replace("{user}", member.name)
+    msg = msg.replace("{server}", member.guild.name)
+
+    embed = discord.Embed(
+        title="💢 สมาชิกออกจากเซิร์ฟเวอร์",
+        description=msg,
+        color=0x2f3136
+    )
+
+    embed.set_thumbnail(url=member.display_avatar.url)
+
+    await channel.send(embed=embed)
+
 # ================= EMBED =================
 
 def promo_embed(title, desc):
