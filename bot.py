@@ -13,8 +13,8 @@ TOKEN = os.getenv("TOKEN")
 
 PROMO_IMAGE = "https://cdn.discordapp.com/attachments/1476624074921738467/1476892902880706691/77a78e76e8b70493bb8615f5b06e36f7.gif"
 
-# ห้องที่ใช้ !link ได้
 LINK_CHANNEL_ID = 1476914330854490204
+REQUIRED_GUILD_ID = 1476624073990738022
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
@@ -22,7 +22,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 song_queues = {}
 verification_data = {}
 
-# ================= PROMO EMBED =================
+# ================= EMBED =================
 
 def promo_embed(title, desc):
     embed = discord.Embed(title=title, description=desc, color=0x2f3136)
@@ -44,37 +44,37 @@ async def play_next(guild):
                 )
             )
 
-@bot.tree.command(name="join")
+@bot.tree.command(name="join", description="🍗 ให้บอทเข้าห้องเสียงของคุณ")
 async def join(interaction: discord.Interaction):
     await interaction.response.defer()
 
     if not interaction.user.voice:
-        return await interaction.followup.send(embed=promo_embed("🚧 ผิดพลาด", "🍞ต้องอยู่ในห้องเสียงก่อน"))
+        return await interaction.followup.send(embed=promo_embed("🦞ผิดพลาด", "🥢ต้องอยู่ในห้องเสียงก่อน"))
 
     if interaction.guild.voice_client:
-        return await interaction.followup.send(embed=promo_embed("🌼แจ้งเตือน", "🌻บอทอยู่ในห้องแล้ว"))
+        return await interaction.followup.send(embed=promo_embed("🍍แจ้งเตือน", "🍋บอทอยู่ในห้องแล้ว"))
 
     await interaction.user.voice.channel.connect()
-    await interaction.followup.send(embed=promo_embed("🌴สำเร็จ", "🌳บอทเข้าห้องเสียงแล้ว"))
+    await interaction.followup.send(embed=promo_embed("🍏สำเร็จ", "🥑บอทเข้าห้องเสียงแล้ว"))
 
-@bot.tree.command(name="leave")
+@bot.tree.command(name="leave", description="🍲 ให้บอทออกจากห้องเสียง")
 async def leave(interaction: discord.Interaction):
     await interaction.response.defer()
     vc = interaction.guild.voice_client
 
     if vc:
         await vc.disconnect()
-        await interaction.followup.send(embed=promo_embed("🍃ออกแล้ว", "🍀บอทออกจากห้องเสียงแล้ว"))
+        await interaction.followup.send(embed=promo_embed("🧀ออกแล้ว", "🥯บอทออกจากห้องเสียงแล้ว"))
     else:
-        await interaction.followup.send(embed=promo_embed("🍄ผิดพลาด", "🌋บอทไม่ได้อยู่ในห้องเสียง"))
+        await interaction.followup.send(embed=promo_embed("🍒ผิดพลาด", "🌰บอทไม่ได้อยู่ในห้องเสียง"))
 
-@bot.tree.command(name="play")
-@app_commands.describe(query="🫕ชื่อเพลงหรือ URL")
+@bot.tree.command(name="play", description="🫛 เล่นเพลงจาก YouTube")
+@app_commands.describe(query="ชื่อเพลงหรือ URL")
 async def play(interaction: discord.Interaction, query: str):
     await interaction.response.defer(thinking=True)
 
     if not interaction.user.voice:
-        return await interaction.followup.send(embed=promo_embed("🍒ผิดพลาด", "🧀ต้องอยู่ในห้องเสียงก่อน"))
+        return await interaction.followup.send(embed=promo_embed("ผิดพลาด", "ต้องอยู่ในห้องเสียงก่อน"))
 
     if not interaction.guild.voice_client:
         await interaction.user.voice.channel.connect()
@@ -95,114 +95,92 @@ async def play(interaction: discord.Interaction, query: str):
     if not vc.is_playing():
         await play_next(interaction.guild)
 
-    await interaction.followup.send(embed=promo_embed("🍇 เพิ่มเพลงแล้ว", f"**{title}**"))
+    await interaction.followup.send(embed=promo_embed("🍊 เพิ่มเพลงแล้ว", f"**{title}**"))
 
-# ================= LINK SAFETY SYSTEM =================
+@bot.tree.command(name="queue", description="📜 ดูรายการเพลงในคิว")
+async def queue(interaction: discord.Interaction):
+    await interaction.response.defer()
 
-def check_link_safety(url):
-    score = 100
-    parsed = urlparse(url)
+    if interaction.guild.id not in song_queues or not song_queues[interaction.guild.id]:
+        return await interaction.followup.send(embed=promo_embed("คิวว่าง", "ไม่มีเพลงในคิว"))
 
-    if parsed.scheme not in ["http", "https"]:
-        score -= 40
+    desc = ""
+    for i, (_, title) in enumerate(song_queues[interaction.guild.id], start=1):
+        desc += f"{i}. {title}\n"
 
-    suspicious = ["bit.ly", "tinyurl", "grabify", "iplogger", "discord-gift"]
-    for bad in suspicious:
-        if bad in url.lower():
-            score -= 50
+    await interaction.followup.send(embed=promo_embed("📜 คิวเพลง", desc))
 
-    if "@" in url:
-        score -= 20
+@bot.tree.command(name="skip", description="⏭️ ข้ามเพลงปัจจุบัน")
+async def skip(interaction: discord.Interaction):
+    await interaction.response.defer()
+    vc = interaction.guild.voice_client
 
-    if len(url) > 120:
-        score -= 10
+    if not vc or not vc.is_playing():
+        return await interaction.followup.send(embed=promo_embed("🍎ผิดพลาด", "🍓ไม่มีเพลงกำลังเล่น"))
 
-    if not parsed.netloc:
-        score -= 50
+    vc.stop()
+    await interaction.followup.send(embed=promo_embed("⏭️ ข้ามแล้ว", "เพลงถูกข้ามเรียบร้อย"))
 
-    return max(score, 0)
+@bot.tree.command(name="clearqueue", description="🗑️ ล้างคิวเพลงทั้งหมด")
+async def clearqueue(interaction: discord.Interation):
+    await interaction.response.defer()
 
-@bot.command()
-async def link(ctx, url: str):
-    if ctx.channel.id != LINK_CHANNEL_ID:
-        return  # ใช้ได้เฉพาะห้องที่กำหนด
+    if interaction.guild.id in song_queues:
+        song_queues[interaction.guild.id].clear()
 
-    score = check_link_safety(url)
+    await interaction.followup.send(embed=promo_embed("🗑️ ล้างคิวแล้ว", "คิวเพลงถูกล้างทั้งหมด"))
 
-    if score >= 80:
-        status = "🌱 ปลอดภัยสูง"
-    elif score >= 50:
-        status = "🍋 เสี่ยงปานกลาง"
-    else:
-        status = "🌶️ อันตราย"
+@bot.tree.command(name="stop", description="⏸️ หยุดเพลงชั่วคราวตามเวลาที่กำหนด")
+@app_commands.describe(time="จำนวนวินาทีที่ต้องการหยุด")
+async def stop(interaction: discord.Interaction, time: int):
+    await interaction.response.defer()
 
-    embed = discord.Embed(
-        title="🔎 ตรวจสอบลิ้ง",
-        description=f"""ลิ้ง: {url}
+    vc = interaction.guild.voice_client
 
-คะแนนความปลอดภัย: {score}%
-สถานะ: {status}""",
-        color=0x2f3136
-    )
+    if not vc or not vc.is_playing():
+        return await interaction.followup.send(embed=promo_embed("🥩ผิดพลาด", "🥓ไม่มีเพลงกำลังเล่น"))
 
-    await ctx.send(embed=embed)
+    vc.pause()
+    await interaction.followup.send(embed=promo_embed("⏸️ หยุดแล้ว", f"พักเพลง {time} วินาที"))
 
-# ================= VERIFICATION SYSTEM =================
+    await asyncio.sleep(time)
 
-class VerifyModal(discord.ui.Modal):
-    def __init__(self, guild_id):
-        super().__init__(title="🔐 ยืนยันตัวตน")
-        self.guild_id = guild_id
+    if vc.is_paused():
+        vc.resume()
+        await interaction.channel.send(embed=promo_embed("▶️ เล่นต่อ", "🧇เพลงเล่นต่ออัตโนมัติแล้ว"))
 
-        code = random.randint(100000, 999999)
-        verification_data[guild_id]["code"] = code
+# ================= VASVEX =================
 
-        self.code_input = discord.ui.TextInput(
-            label=f"🍇กรอกรหัส: {code}",
-            required=True
-        )
-        self.add_item(self.code_input)
-
-    async def on_submit(self, interaction: discord.Interaction):
-        data = verification_data.get(self.guild_id)
-
-        if not data:
-            return await interaction.response.send_message("🌶️ระบบยังไม่ถูกสร้าง", ephemeral=True)
-
-        if self.code_input.value == str(data["code"]):
-            role = interaction.guild.get_role(data["role_id"])
-            if role:
-                await interaction.user.add_roles(role)
-                await interaction.response.send_message("🍐ยืนยันสำเร็จ", ephemeral=True)
-            else:
-                await interaction.response.send_message("🦞ไม่พบยศ", ephemeral=True)
-        else:
-            await interaction.response.send_message("🍓เลขไม่ถูกต้อง", ephemeral=True)
-
-class VerifyView(discord.ui.View):
-    def __init__(self, guild_id):
-        super().__init__(timeout=None)
-        self.guild_id = guild_id
-
-    @discord.ui.button(label="🔐 ยืนยันตัวตน", style=discord.ButtonStyle.green)
-    async def verify(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(VerifyModal(self.guild_id))
-
-@bot.tree.command(name="vasvex")
+@bot.tree.command(name="vasvex", description="🔐 สร้างระบบยืนยันตัวตน")
 @app_commands.describe(
-    channel="🍟ห้องที่จะส่ง",
-    role="🌽ยศที่จะให้",
-    image_url="🍋ลิ้งรูป (ไม่ใส่ก็ได้)"
+    channel="🌭ห้องที่จะส่ง",
+    role="🥪ยศที่จะให้",
+    image_url="🍞ลิ้งรูป (ไม่ใส่ก็ได้)"
 )
 async def vasvex(interaction: discord.Interaction,
                  channel: discord.TextChannel,
                  role: discord.Role,
                  image_url: str = None):
 
-    # ✅ ใช้ได้เฉพาะแอดมินเท่านั้น
+    # ✅ ต้องเป็นแอดมินในเซิร์ฟที่กดใช้
     if not interaction.user.guild_permissions.administrator:
         return await interaction.response.send_message(
-            "🍎ต้องเป็นแอดมินเท่านั้น",
+            "🍁ต้องเป็นแอดมินในเซิร์ฟนี้ก่อน",
+            ephemeral=True
+        )
+
+    # ✅ ต้องอยู่ในเซิร์ฟ REQUIRED_GUILD_ID
+    required_guild = bot.get_guild(REQUIRED_GUILD_ID)
+    if not required_guild:
+        return await interaction.response.send_message(
+            "🍄ในไม่พบเซิร์ฟเวอร์ที่กำหนด",
+            ephemeral=True
+        )
+
+    member = required_guild.get_member(interaction.user.id)
+    if not member:
+        return await interaction.response.send_message(
+            "🪻ต้องอยู่ในเซิร์ฟเวอร์ของเจ้าของบอทก่อนถึงจะใช้ได้หน้าโปร",
             ephemeral=True
         )
 
@@ -219,13 +197,10 @@ async def vasvex(interaction: discord.Interaction,
         color=0x2f3136
     )
 
-    if image_url:
-        embed.set_image(url=image_url)
-    else:
-        embed.set_image(url=PROMO_IMAGE)
+    embed.set_image(url=image_url if image_url else PROMO_IMAGE)
 
-    await channel.send(embed=embed, view=VerifyView(guild_id))
-    await interaction.response.send_message("🌾สร้างระบบยืนยันตัวตนแล้ว", ephemeral=True)
+    await channel.send(embed=embed)
+    await interaction.response.send_message("🍃สร้างระบบยืนยันตัวตนแล้ว", ephemeral=True)
 
 # ================= READY =================
 
