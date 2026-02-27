@@ -31,141 +31,54 @@ goodbye_settings = {}
 welcome_settings = {}
 goodbye_settings = {}
 
-class ModeSelect(discord.ui.Select):
-    def __init__(self):
-        options = [
-            discord.SelectOption(label="Welcome", description="ตั้งค่าระบบต้อนรับ", emoji="🗯️"),
-            discord.SelectOption(label="Goodbye", description="ตั้งค่าระบบลา", emoji="💢")
-        ]
-        super().__init__(placeholder="เลือกรูปแบบการทำงาน...", options=options)
-
-    async def callback(self, interaction: discord.Interaction):
-        mode = self.values[0]
-
-        class MessageModal(discord.ui.Modal, title=f"ตั้งค่า {mode}"):
-            message = discord.ui.TextInput(
-                label="พิมพ์ข้อความ (ใช้ {user} {server})",
-                style=discord.TextStyle.paragraph,
-                required=True
-            )
-
-            async def on_submit(self, interaction2: discord.Interaction):
-                guild_id = interaction2.guild.id
-
-                if mode == "Welcome":
-                    welcome_settings[guild_id] = {"message": str(self.message), "enabled": False}
-                else:
-                    goodbye_settings[guild_id] = {"message": str(self.message), "enabled": False}
-
-                await interaction2.response.send_message(
-                    f"🍀 ตั้งค่า {mode} แล้ว กด ▶️ เพื่อเปิดระบบ",
-                    view=ControlButtons(mode, guild_id),
-                    ephemeral=True
-                )
-
-        await interaction.response.send_modal(MessageModal())
-
-class ModeView(discord.ui.View):
-    def __init__(self):
+class WelcomePanelView(discord.ui.View):
+    def __init__(self, guild_id):
         super().__init__(timeout=None)
-        self.add_item(ModeSelect())
-
-class ControlButtons(discord.ui.View):
-    def __init__(self, mode, guild_id):
-        super().__init__(timeout=None)
-        self.mode = mode
         self.guild_id = guild_id
 
-    @discord.ui.button(label="▶️ รันระบบ", style=discord.ButtonStyle.success)
-    async def start(self, interaction: discord.Interaction, button: discord.ui.Button):
+    # ================= WELCOME =================
+
+    @discord.ui.button(label="💾 รัน Welcome", style=discord.ButtonStyle.success, row=0)
+    async def run_welcome(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         if not interaction.user.guild_permissions.administrator:
-            return await interaction.response.send_message("🌰 แอดมินเท่านั้น", ephemeral=True)
+            return await interaction.response.send_message("💢 แอดมินเท่านั้น", ephemeral=True)
 
-        if self.mode == "Welcome":
-            welcome_settings[self.guild_id]["enabled"] = True
-        else:
-            goodbye_settings[self.guild_id]["enabled"] = True
+        if self.guild_id not in welcome_settings:
+            return await interaction.response.send_message("⚠️ ยังไม่ได้ตั้งค่า Welcome", ephemeral=True)
 
-        await interaction.response.send_message("🗯️ เปิดระบบแล้ว", ephemeral=True)
+        await interaction.response.send_message("📁 เปิดระบบ Welcome แล้ว", ephemeral=False)
 
-    @discord.ui.button(label="🍓 ปิดระบบ", style=discord.ButtonStyle.danger)
-    async def stop(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="💢 ปิด Welcome", style=discord.ButtonStyle.danger, row=0)
+    async def stop_welcome(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         if not interaction.user.guild_permissions.administrator:
-            return await interaction.response.send_message("🥓 แอดมินเท่านั้น", ephemeral=True)
+            return await interaction.response.send_message("💢 แอดมินเท่านั้น", ephemeral=True)
 
-        if self.mode == "Welcome":
-            welcome_settings[self.guild_id]["enabled"] = False
-        else:
-            goodbye_settings[self.guild_id]["enabled"] = False
+        welcome_settings.pop(self.guild_id, None)
+        await interaction.response.send_message("💢 ปิดระบบ Welcome แล้ว", ephemeral=False)
 
-        await interaction.response.send_message("🥩 ปิดระบบแล้ว", ephemeral=True)
+    # ================= GOODBYE =================
 
-# ================= SLASH COMMAND =================
+    @discord.ui.button(label="💾 รัน Goodbye", style=discord.ButtonStyle.success, row=1)
+    async def run_goodbye(self, interaction: discord.Interaction, button: discord.ui.Button):
 
-@bot.tree.command(name="welcome-panel", description="เปิดเมนูจัดการ Welcome/Goodbye")
-async def welcome_panel(interaction: discord.Interaction):
+        if not interaction.user.guild_permissions.administrator:
+            return await interaction.response.send_message("💢 แอดมินเท่านั้น", ephemeral=True)
 
-    if not interaction.user.guild_permissions.administrator:
-        return await interaction.response.send_message("🍄 ต้องเป็นแอดมิน", ephemeral=True)
+        if self.guild_id not in goodbye_settings:
+            return await interaction.response.send_message("🗯️ ยังไม่ได้ตั้งค่า Goodbye", ephemeral=True)
 
-    required_guild = bot.get_guild(REQUIRED_GUILD_ID)
-    member = required_guild.get_member(interaction.user.id) if required_guild else None
+        await interaction.response.send_message("📁 เปิดระบบ Goodbye แล้ว", ephemeral=False)
 
-    if not member:
-        return await interaction.response.send_message("🍒 ไม่มีสิทธิ์ใช้คำสั่งนี้", ephemeral=True)
+    @discord.ui.button(label="💢 ปิด Goodbye", style=discord.ButtonStyle.danger, row=1)
+    async def stop_goodbye(self, interaction: discord.Interaction, button: discord.ui.Button):
 
-    embed = discord.Embed(
-        title="⚙️ ระบบต้อนรับ / ลา",
-        description="เลือกโหมดด้านล่าง",
-        color=0x2f3136
-    )
-    embed.set_image(url=PROMO_IMAGE)
+        if not interaction.user.guild_permissions.administrator:
+            return await interaction.response.send_message("💢 แอดมินเท่านั้น", ephemeral=True)
 
-    await interaction.response.send_message(embed=embed, view=ModeView(), ephemeral=True)
-
-# ================= MEMBER EVENTS =================
-
-@bot.event
-async def on_member_join(member):
-
-    data = welcome_settings.get(member.guild.id)
-    if not data or not data["enabled"]:
-        return
-
-    msg = data["message"]
-    msg = msg.replace("{user}", member.mention)
-    msg = msg.replace("{server}", member.guild.name)
-
-    embed = discord.Embed(
-        title="🗯️ สมาชิกใหม่เข้าแล้ว",
-        description=msg,
-        color=0x2f3136
-    )
-    embed.set_thumbnail(url=member.display_avatar.url)
-
-    await member.guild.system_channel.send(embed=embed)
-
-@bot.event
-async def on_member_remove(member):
-
-    data = goodbye_settings.get(member.guild.id)
-    if not data or not data["enabled"]:
-        return
-
-    msg = data["message"]
-    msg = msg.replace("{user}", member.name)
-    msg = msg.replace("{server}", member.guild.name)
-
-    embed = discord.Embed(
-        title="💢 สมาชิกออกแล้ว",
-        description=msg,
-        color=0x2f3136
-    )
-    embed.set_thumbnail(url=member.display_avatar.url)
-
-    await member.guild.system_channel.send(embed=embed)
+        goodbye_settings.pop(self.guild_id, None)
+        await interaction.response.send_message("💢 ปิดระบบ Goodbye แล้ว", ephemeral=False)
 
 # ================= EMBED =================
 
