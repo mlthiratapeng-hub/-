@@ -18,7 +18,7 @@ REQUIRED_GUILD_ID = 1476624073990738022
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-================= DATA =================
+# ================= DATA =================
 
 song_queues = {}
 verification_data = {}
@@ -30,14 +30,14 @@ whitelist_users = {}
 log_channels = {}
 role_action_tracker = {}
 
-================= EMBED =================
+# ================= EMBED =================
 
 def promo_embed(title, desc):
 embed = discord.Embed(title=title, description=desc, color=0x2f3136)
 embed.set_image(url=PROMO_IMAGE)
 return embed
 
-================= ADMIN CHECK =================
+# ================= ADMIN CHECK =================
 
 async def check_admin_permission(interaction):
 if not interaction.user.guild_permissions.administrator:
@@ -55,7 +55,7 @@ if not required_guild.get_member(interaction.user.id):
 
 return True
 
-================= PROTECTION COMMANDS =================
+# ================= PROTECTION COMMANDS =================
 
 @bot.tree.command(name="nolink", description="🔗 เปิดระบบกันลิงก์")
 async def nolink(interaction: discord.Interaction):
@@ -94,7 +94,7 @@ return await interaction.response.send_message("🍄 แอดมินเท่
 log_channels[interaction.guild.id] = interaction.channel.id
 await interaction.response.send_message("🍏 เปิดระบบ log แล้ว", ephemeral=True)
 
-================= MESSAGE MONITOR =================
+# ================= MESSAGE MONITOR =================
 
 @bot.event
 async def on_message(message):
@@ -153,7 +153,7 @@ if protection_settings.get(guild_id, {}).get("nospam"):
 
 await bot.process_commands(message)
 
-================= ANTI NUKE =================
+# ================= ANTI NUKE =================
 
 @bot.event
 async def on_guild_role_update(before, after):
@@ -183,7 +183,7 @@ async for entry in after.guild.audit_logs(limit=1, action=discord.AuditLogAction
             if log_channel:  
                 await log_channel.send(f"💣 {user} ถูกแบน (Nuke)")
 
-================= EMBED =================
+# ================= EMBED =================
 
 def promo_embed(title, desc):
 embed = discord.Embed(title=title, description=desc, color=0x2f3136)
@@ -248,7 +248,7 @@ embed.set_image(url=PROMO_IMAGE)
 
 await ctx.send(embed=embed)
 
-================= MUSIC SYSTEM =================
+# ================= MUSIC SYSTEM =================
 
 async def play_next(guild):
 if guild.id in song_queues and song_queues[guild.id]:
@@ -368,7 +368,7 @@ if vc.is_paused():
     vc.resume()  
     await interaction.channel.send(embed=promo_embed("▶️ เล่นต่อ", "🧇เพลงเล่นต่ออัตโนมัติแล้ว"))
 
-================= VASVEX =================
+# ================= VASVEX =================
 
 @bot.tree.command(name="vasvex", description="🔐 สร้างระบบยืนยันตัวตน")
 @app_commands.describe(
@@ -421,7 +421,7 @@ embed.set_image(url=image_url if image_url else PROMO_IMAGE)
 await channel.send(embed=embed)  
 await interaction.response.send_message("🍃สร้างระบบยืนยันตัวตนแล้ว", ephemeral=True)
 
-================= READY =================
+# ================= READY =================
 
 @bot.event
 async def on_ready():
