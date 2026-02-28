@@ -13,7 +13,6 @@ class MyBot(commands.Bot):
         )
 
     async def setup_hook(self):
-        # โหลดทุกไฟล์ในโฟลเดอร์ cogs
         for file in os.listdir("./cogs"):
             if file.endswith(".py"):
                 await self.load_extension(f"cogs.{file[:-3]}")
