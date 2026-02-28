@@ -16,7 +16,7 @@ class LinkScan(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="link", description="สแกนลิงก์แบบจริงจัง")
+    @app_commands.command(name="examine", description="สแกนลิงก์แบบจากGoogle Safe BrowsingเเละVirusTotal")
     @app_commands.describe(url="ลิงก์ที่ต้องการตรวจสอบ")
     async def link(self, interaction: discord.Interaction, url: str):
 
@@ -92,9 +92,9 @@ class LinkScan(commands.Cog):
                     data = await resp.json()
                     if "matches" in data:
                         score -= 50
-                        gsb_result = "🔴 Google ตรวจพบภัยคุกคาม"
+                        gsb_result = "💢 Google ตรวจพบภัยคุกคาม"
                     else:
-                        gsb_result = "🟢 Google ไม่พบภัยคุกคาม"
+                        gsb_result = "🍇 Google ไม่พบภัยคุกคาม"
             except:
                 gsb_result = "ไม่สามารถเช็ค Google ได้"
 
