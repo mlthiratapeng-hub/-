@@ -16,7 +16,7 @@ class LinkScan(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="examine", description="สแกนลิงก์แบบจริงจัง")
+    @app_commands.command(name="examine", description="สแกนลิงก์แบบมาตรฐานgoogle")
     @app_commands.describe(url="ลิงก์ที่ต้องการตรวจสอบ")
     async def link(self, interaction: discord.Interaction, url: str):
 
