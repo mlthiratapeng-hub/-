@@ -21,11 +21,11 @@ class LinkScan(commands.Cog):
     async def link(self, interaction: discord.Interaction, url: str):
 
         if interaction.guild_id != ALLOWED_GUILD_ID:
-            await interaction.response.send_message("💢 ใช้ได้เฉพาะเซิร์ฟเวอร์ที่กำหนด", ephemeral=True)
+            await interaction.response.send_message("💢 ใช้ได้เฉพาะเซิฟหน้าโปรบอทค่ะ", ephemeral=True)
             return
 
         if interaction.channel_id != ALLOWED_CHANNEL_ID:
-            await interaction.response.send_message("💢 ใช้ได้เฉพาะห้องที่กำหนด", ephemeral=True)
+            await interaction.response.send_message("💢 ใช้ได้เฉพาะห้องที่กำหนดค่ะ", ephemeral=True)
             return
 
         await interaction.response.defer()
