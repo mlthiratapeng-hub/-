@@ -7,24 +7,24 @@ from database import is_whitelisted
 class AntiLink(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.enabled = {}  # เก็บสถานะเปิด/ปิด แยกตามเซิร์ฟเวอร์
+        self.enabled = {}      # เปิด/ปิดระบบแยกตามเซิร์ฟเวอร์
+        self.warnings = {}     # เก็บจำนวนครั้งที่ส่งลิงก์
 
     # =========================
-    # Slash Command: /nolink
+    # /nolink เปิด/ปิดระบบ
     # =========================
     @app_commands.command(name="nolink", description="เปิด/ปิด ระบบกันลิงก์")
     async def nolink(self, interaction: discord.Interaction):
 
         if interaction.guild is None:
             return await interaction.response.send_message(
-                "💢 ใช้ได้เฉพาะในเซิร์ฟเวอร์",
+                "❌ ใช้ได้เฉพาะในเซิร์ฟเวอร์",
                 ephemeral=True
             )
 
-        # ใช้ได้เฉพาะแอดมิน
         if not interaction.user.guild_permissions.administrator:
             return await interaction.response.send_message(
-                "💢 Admin only",
+                "❌ Admin only",
                 ephemeral=True
             )
 
@@ -48,7 +48,7 @@ class AntiLink(commands.Cog):
         if not message.guild:
             return
 
-        # ข้ามคนที่ whitelist
+        # ข้าม whitelist
         if is_whitelisted(message.author.id):
             return
 
@@ -56,20 +56,40 @@ class AntiLink(commands.Cog):
         if not self.enabled.get(message.guild.id, False):
             return
 
-        # ตรวจจับลิงก์
+        # ตรวจลิงก์
         if re.search(r"https?://", message.content):
+
             try:
                 await message.delete()
-                await message.channel.send(
-                    f"{message.author.mention} 💢 ห้ามส่งลิงก์",
-                    delete_after=5
-                )
             except:
                 pass
 
+            key = (message.guild.id, message.author.id)
+            self.warnings[key] = self.warnings.get(key, 0) + 1
 
-# =========================
-# โหลด Cog
-# =========================
+            count = self.warnings[key]
+
+            # เตือนครั้งที่ 1-2
+            if count < 3:
+                await message.channel.send(
+                    f"⚠ {message.author.mention} ห้ามส่งลิงก์ ({count}/3)",
+                    delete_after=5
+                )
+                return
+
+            # ครบ 3 ครั้ง → แบน
+            try:
+                await message.author.ban(reason="ส่งลิงก์ครบ 3 ครั้ง")
+                await message.channel.send(
+                    f"🔨 {message.author.mention} ถูกแบน (ส่งลิงก์ครบ 3 ครั้ง)",
+                    delete_after=5
+                )
+            except Exception as e:
+                print("BAN ERROR:", e)
+
+            # รีเซ็ตตัวนับ
+            self.warnings.pop(key, None)
+
+
 async def setup(bot: commands.Bot):
     await bot.add_cog(AntiLink(bot))
