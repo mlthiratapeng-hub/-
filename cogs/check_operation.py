@@ -7,9 +7,10 @@ class CheckOperation(commands.Cog):
         self.bot = bot
         self.auto_channel_id = None
         self.auto_guild_id = None
+        self.last_status = {}  # เก็บสถานะล่าสุดของบอท
 
     # ==============================
-    # ฟังก์ชันเช็คบอท
+    # สร้างรายงาน
     # ==============================
     async def generate_report(self, guild: discord.Guild):
         online_bots = []
@@ -17,6 +18,8 @@ class CheckOperation(commands.Cog):
 
         for member in guild.members:
             if member.bot:
+                self.last_status.setdefault(member.id, member.status)
+
                 if member.status == discord.Status.offline:
                     offline_bots.append(member.name)
                 else:
@@ -48,7 +51,7 @@ class CheckOperation(commands.Cog):
     # ==============================
     @app_commands.command(
         name="check_operation",
-        description="ตรวจสอบว่าบอทในเซิร์ฟออนไลน์กี่ตัว"
+        description="ตรวจสอบและตั้งค่าระบบตรวจบอท"
     )
     @app_commands.checks.has_permissions(administrator=True)
     async def check_operation(
@@ -59,14 +62,13 @@ class CheckOperation(commands.Cog):
         guild = interaction.guild
 
         embed = await self.generate_report(guild)
-
         await channel.send(embed=embed)
+
         await interaction.response.send_message(
-            "✅ ตั้งค่าห้องรายงานอัตโนมัติแล้ว (ทุก 1 ชั่วโมง)",
+            "🍃 เปิดระบบตรวจบอท + แจ้งเตือนทันทีแล้ว",
             ephemeral=True
         )
 
-        # เก็บค่าห้องไว้สำหรับ auto
         self.auto_channel_id = channel.id
         self.auto_guild_id = guild.id
 
@@ -74,7 +76,44 @@ class CheckOperation(commands.Cog):
             self.auto_report.start()
 
     # ==============================
-    # Auto Report ทุก 1 ชั่วโมง
+    # แจ้งเตือนทันทีเมื่อสถานะเปลี่ยน
+    # ==============================
+    @commands.Cog.listener()
+    async def on_presence_update(self, before, after):
+        if not after.bot:
+            return
+
+        if not self.auto_channel_id:
+            return
+
+        old_status = self.last_status.get(after.id)
+        new_status = after.status
+
+        if old_status != new_status:
+            self.last_status[after.id] = new_status
+
+            channel = self.bot.get_channel(self.auto_channel_id)
+            if not channel:
+                return
+
+            if new_status == discord.Status.offline:
+                embed = discord.Embed(
+                    title="🚨 BOT OFFLINE",
+                    description=f"บอท **{after.name}** ออฟไลน์แล้ว!",
+                    color=discord.Color.red()
+                )
+                await channel.send(embed=embed)
+
+            elif old_status == discord.Status.offline and new_status != discord.Status.offline:
+                embed = discord.Embed(
+                    title="🍃 BOT ONLINE",
+                    description=f"บอท **{after.name}** กลับมาออนไลน์แล้ว!",
+                    color=discord.Color.green()
+                )
+                await channel.send(embed=embed)
+
+    # ==============================
+    # รายงานทุก 1 ชั่วโมง
     # ==============================
     @tasks.loop(hours=1)
     async def auto_report(self):
