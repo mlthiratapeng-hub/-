@@ -1,84 +1,87 @@
 import discord
-from discord.ext import commands
 from discord import app_commands
-import time
-from collections import defaultdict
-from database import is_whitelisted
+from discord.ext import commands
+
+# เก็บสถานะเปิด/ปิด ต่อเซิร์ฟเวอร์
+anti_spam_status = {}
+
+class AntiSpamToggleView(discord.ui.View):
+    def __init__(self, guild_id):
+        super().__init__(timeout=60)
+        self.guild_id = guild_id
+
+    @discord.ui.button(label="เปิดระบบ", style=discord.ButtonStyle.success, emoji="📁")
+    async def enable(self, interaction: discord.Interaction, button: discord.ui.Button):
+        anti_spam_status[self.guild_id] = True
+
+        embed = discord.Embed(
+            title="🛡️ ระบบป้องกันสแปม",
+            description="✅ เปิดระบบป้องกันสแปมเรียบร้อยแล้ว",
+            color=discord.Color.green()
+        )
+        await interaction.response.edit_message(embed=embed, view=None)
+
+    @discord.ui.button(label="ปิดระบบ", style=discord.ButtonStyle.danger, emoji="💢")
+    async def disable(self, interaction: discord.Interaction, button: discord.ui.Button):
+        anti_spam_status[self.guild_id] = False
+
+        embed = discord.Embed(
+            title="🛡️ ระบบป้องกันสแปม",
+            description="💢 ปิดระบบป้องกันสแปมเรียบร้อยแล้ว",
+            color=discord.Color.red()
+        )
+        await interaction.response.edit_message(embed=embed, view=None)
+
+
+class AntiSpamMainView(discord.ui.View):
+    def __init__(self, guild_id):
+        super().__init__(timeout=60)
+        self.guild_id = guild_id
+
+    @discord.ui.button(label="เลือกการตั้งค่า", style=discord.ButtonStyle.primary)
+    async def settings(self, interaction: discord.Interaction, button: discord.ui.Button):
+        embed = discord.Embed(
+            title="🛡️ ตั้งค่าระบบป้องกันสแปม",
+            description="เลือกการตั้งค่าที่นี่นะคะ...",
+            color=discord.Color.blue()
+        )
+
+        await interaction.response.edit_message(
+            embed=embed,
+            view=AntiSpamToggleView(self.guild_id)
+        )
+
 
 class AntiSpam(commands.Cog):
-    def __init__(self, bot: commands.Bot):
+    def __init__(self, bot):
         self.bot = bot
-        self.enabled = {}
-        self.message_cache = defaultdict(list)  # เก็บเวลาข้อความแต่ละคน
 
-    # =========================
-    # Slash Command: /nospam
-    # =========================
-    @app_commands.command(name="nospam", description="เปิด/ปิด ระบบกันสแปม")
-    async def nospam(self, interaction: discord.Interaction):
+    @app_commands.command(name="anti-spam", description="ตั้งค่าระบบป้องกันสแปม")
+    async def anti_spam(self, interaction: discord.Interaction):
 
-        if interaction.guild is None:
-            return await interaction.response.send_message(
-                "💢 ใช้ได้เฉพาะในเซิร์ฟเวอร์",
-                ephemeral=True
-            )
+        guild_id = interaction.guild.id
 
-        if not interaction.user.guild_permissions.administrator:
-            return await interaction.response.send_message(
-                "💢 Admin only",
-                ephemeral=True
-            )
+        if guild_id not in anti_spam_status:
+            anti_spam_status[guild_id] = False
 
-        current = self.enabled.get(interaction.guild.id, False)
-        self.enabled[interaction.guild.id] = not current
+        embed = discord.Embed(
+            title="📁 ตั้งค่าระบบป้องกันสแปม",
+            description="สวัสดีค่ะ! เลือกตั้งค่าผ่านปุ่มด้านล่างเพื่อเปิด/ปิดระบบ",
+            color=discord.Color.blurple()
+        )
+
+        embed.add_field(
+            name="สถานะปัจจุบัน",
+            value="📁 เปิดอยู่" if anti_spam_status[guild_id] else "💢 ปิดอยู่",
+            inline=False
+        )
 
         await interaction.response.send_message(
-            f"💢 Anti-Spam {'ON' if not current else 'OFF'}",
+            embed=embed,
+            view=AntiSpamMainView(guild_id),
             ephemeral=True
         )
 
-    # =========================
-    # ตรวจข้อความ
-    # =========================
-    @commands.Cog.listener()
-    async def on_message(self, message: discord.Message):
 
-        if message.author.bot:
-            return
-
-        if not message.guild:
-            return
-
-        if is_whitelisted(message.author.id):
-            return
-
-        if not self.enabled.get(message.guild.id, False):
-            return
-
-        now = time.time()
-        user_id = message.author.id
-
-        self.message_cache[user_id].append(now)
-
-        # เก็บเฉพาะข้อความใน 5 วินาทีล่าสุด
-        self.message_cache[user_id] = [
-            t for t in self.message_cache[user_id] if now - t <= 5
-        ]
-
-        # ถ้าเกิน 5 ข้อความใน 5 วิ = สแปม
-        if len(self.message_cache[user_id]) >= 5:
-            try:
-                await message.delete()
-                await message.channel.send(
-                    f"{message.author.mention} 💢 ห้ามสแปม",
-                    delete_after=5
-                )
-            except:
-                pass
-
-
-# =========================
-# โหลด Cog
-# =========================
-async def setup(bot: commands.Bot):
+async def setup(bot):
     await bot.add_cog(AntiSpam(bot))
