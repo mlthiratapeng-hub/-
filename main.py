@@ -29,4 +29,4 @@ async def on_ready():
 
 init_db()
 
-bot.run("TOKEN")
+bot.run(os.getenv("TOKEN"))
