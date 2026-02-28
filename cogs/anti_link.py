@@ -2,19 +2,24 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import re
-from config import MAIN_GUILD_ID
 from database import is_whitelisted
 
 class AntiLink(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.enabled = {}
+        self.enabled = {}  # เก็บสถานะเปิด/ปิด แยกตามเซิร์ฟเวอร์
 
+    # =========================
+    # Slash Command: /nolink
+    # =========================
     @app_commands.command(name="nolink", description="เปิด/ปิด ระบบกันลิงก์")
     async def nolink(self, interaction: discord.Interaction):
 
         if interaction.guild is None:
-            return
+            return await interaction.response.send_message(
+                "❌ ใช้ได้เฉพาะในเซิร์ฟเวอร์",
+                ephemeral=True
+            )
 
         # ใช้ได้เฉพาะแอดมิน
         if not interaction.user.guild_permissions.administrator:
@@ -31,8 +36,11 @@ class AntiLink(commands.Cog):
             ephemeral=True
         )
 
+    # =========================
+    # ตรวจข้อความ
+    # =========================
     @commands.Cog.listener()
-    async def on_message(self, message):
+    async def on_message(self, message: discord.Message):
 
         if message.author.bot:
             return
@@ -40,9 +48,11 @@ class AntiLink(commands.Cog):
         if not message.guild:
             return
 
+        # ข้ามคนที่ whitelist
         if is_whitelisted(message.author.id):
             return
 
+        # ถ้ายังไม่เปิดระบบ
         if not self.enabled.get(message.guild.id, False):
             return
 
@@ -58,5 +68,8 @@ class AntiLink(commands.Cog):
                 pass
 
 
-async def setup(bot):
-    await bot.add_cog(AntiLink(bot), guild=discord.Object(id=MAIN_GUILD_ID))
+# =========================
+# โหลด Cog
+# =========================
+async def setup(bot: commands.Bot):
+    await bot.add_cog(AntiLink(bot))
