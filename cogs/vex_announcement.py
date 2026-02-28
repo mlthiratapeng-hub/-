@@ -48,7 +48,7 @@ class VEXAnnouncement(commands.Cog):
     # !kong ส่งประกาศทุกเซิร์ฟ
     # ==============================
     @commands.command()
-    @commands.is_owner()
+    @commands.has_permissions(administrator=True)
     async def kong(self, ctx, *, message):
 
         embed = discord.Embed(
