@@ -36,7 +36,7 @@ class LinkScan(commands.Cog):
             return
 
         vt_result = "ไม่พบข้อมูล"
-        gsb_result = "ไม่พบภัยคุกคาม"
+        gsb_result = "ไม่พบอันตราย"
         score = 100
 
         async with aiohttp.ClientSession() as session:
