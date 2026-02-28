@@ -6,8 +6,9 @@ from database import init_db
 # ====== ตั้งค่า ======
 ALLOWED_GUILD_ID = 1476624073990738022  # 🔥 ใส่ไอดีเซิร์ฟจริงของคุณ
 
-intents = discord.Intents.default()
-intents.message_content = True
+# 🔥 แก้ตรงนี้
+intents = discord.Intents.all()
+
 
 class MyBot(commands.Bot):
     def __init__(self):
@@ -28,17 +29,21 @@ class MyBot(commands.Bot):
         synced = await self.tree.sync(guild=guild)
         print(f"Synced {len(synced)} commands to guild")
 
+
 bot = MyBot()
+
 
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}")
+
 
 @bot.event
 async def on_message(message):
     if message.author.bot:
         return
     await bot.process_commands(message)
+
 
 # เริ่มระบบ
 init_db()
