@@ -2,7 +2,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-CHANNEL_NAME = "🍇ประกาศVEX"
+CHANNEL_NAME = "ประกาศVEX"
 
 class VEXAnnouncement(commands.Cog):
     def __init__(self, bot):
@@ -24,7 +24,7 @@ class VEXAnnouncement(commands.Cog):
         existing = discord.utils.get(guild.text_channels, name=CHANNEL_NAME)
         if existing:
             await interaction.response.send_message(
-                "🍲 มีห้องประกาศVEX อยู่แล้ว",
+                "มีห้องประกาศVEX อยู่แล้ว",
                 ephemeral=True
             )
             return
@@ -40,7 +40,7 @@ class VEXAnnouncement(commands.Cog):
         )
 
         await interaction.response.send_message(
-            f"🍇 สร้างห้อง {channel.mention} เรียบร้อยแล้ว💢",
+            f"สร้างห้อง {channel.mention} เรียบร้อยแล้ว",
             ephemeral=True
         )
 
@@ -52,7 +52,7 @@ class VEXAnnouncement(commands.Cog):
     async def kong(self, ctx, *, message):
 
         embed = discord.Embed(
-            title="🍇ประกาศVEX",
+            title="ประกาศVEX",
             description=message,
             color=discord.Color.purple()
         )
