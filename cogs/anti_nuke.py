@@ -5,50 +5,95 @@ import time
 from collections import defaultdict
 from database import is_whitelisted
 
+anti_nuke_status = {}
+
+class AntiNukeToggleView(discord.ui.View):
+    def __init__(self, guild_id):
+        super().__init__(timeout=60)
+        self.guild_id = guild_id
+
+    @discord.ui.button(label="เปิดระบบ", style=discord.ButtonStyle.success, emoji="📁")
+    async def enable(self, interaction: discord.Interaction, button: discord.ui.Button):
+        anti_nuke_status[self.guild_id] = True
+
+        embed = discord.Embed(
+            title="💣 ระบบป้องกันการลบห้องรัว (Anti-Nuke)",
+            description="📁 เปิดระบบเรียบร้อยแล้ว",
+            color=discord.Color.green()
+        )
+        await interaction.response.edit_message(embed=embed, view=None)
+
+    @discord.ui.button(label="ปิดระบบ", style=discord.ButtonStyle.danger, emoji="💢")
+    async def disable(self, interaction: discord.Interaction, button: discord.ui.Button):
+        anti_nuke_status[self.guild_id] = False
+
+        embed = discord.Embed(
+            title="💣 ระบบป้องกันการลบห้องรัว (Anti-Nuke)",
+            description="💢 ปิดระบบเรียบร้อยแล้ว",
+            color=discord.Color.red()
+        )
+        await interaction.response.edit_message(embed=embed, view=None)
+
+
+class AntiNukeMainView(discord.ui.View):
+    def __init__(self, guild_id):
+        super().__init__(timeout=60)
+        self.guild_id = guild_id
+
+    @discord.ui.button(label="เลือกการตั้งค่า", style=discord.ButtonStyle.primary)
+    async def settings(self, interaction: discord.Interaction, button: discord.ui.Button):
+        embed = discord.Embed(
+            title="💣 ตั้งค่าระบบป้องกันการลบห้องรัว",
+            description="เลือกระบบที่ต้องการด้านล่างค่ะ...",
+            color=discord.Color.blurple()
+        )
+
+        await interaction.response.edit_message(
+            embed=embed,
+            view=AntiNukeToggleView(self.guild_id)
+        )
+
+
 class AntiNuke(commands.Cog):
-    def __init__(self, bot: commands.Bot):
+    def __init__(self, bot):
         self.bot = bot
-        self.enabled = {}
-        self.action_log = defaultdict(list)  # เก็บเวลาการลบช่องของแต่ละคน
+        self.action_log = defaultdict(list)
 
-    # =========================
-    # Slash Command: /nonuke
-    # =========================
-    @app_commands.command(name="nonuke", description="เปิด/ปิด ระบบกันลบห้องรัว (Anti-Nuke)")
-    async def nonuke(self, interaction: discord.Interaction):
+    @app_commands.command(name="anti-nuke", description="ตั้งค่าระบบป้องกันการลบห้องรัว")
+    async def anti_nuke(self, interaction: discord.Interaction):
 
-        if interaction.guild is None:
-            return await interaction.response.send_message(
-                "💢 ใช้ได้เฉพาะในเซิร์ฟเวอร์",
-                ephemeral=True
-            )
+        guild_id = interaction.guild.id
 
-        if not interaction.user.guild_permissions.administrator:
-            return await interaction.response.send_message(
-                "💢 Admin only",
-                ephemeral=True
-            )
+        if guild_id not in anti_nuke_status:
+            anti_nuke_status[guild_id] = False
 
-        current = self.enabled.get(interaction.guild.id, False)
-        self.enabled[interaction.guild.id] = not current
+        embed = discord.Embed(
+            title="💣 ตั้งค่าระบบป้องกันการลบห้องรัว",
+            description="กดปุ่มด้านล่างเพื่อจัดการระบบ",
+            color=discord.Color.blurple()
+        )
+
+        embed.add_field(
+            name="สถานะปัจจุบัน",
+            value="📁 เปิดอยู่" if anti_nuke_status[guild_id] else "💢 ปิดอยู่",
+            inline=False
+        )
 
         await interaction.response.send_message(
-            f"💣 Anti-Nuke {'ON' if not current else 'OFF'}",
+            embed=embed,
+            view=AntiNukeMainView(guild_id),
             ephemeral=True
         )
 
-    # =========================
-    # ตรวจจับการลบช่อง
-    # =========================
     @commands.Cog.listener()
     async def on_guild_channel_delete(self, channel: discord.abc.GuildChannel):
 
         guild = channel.guild
+        guild_id = guild.id
 
-        if not self.enabled.get(guild.id, False):
+        if not anti_nuke_status.get(guild_id, False):
             return
 
-        # ดึง audit log หาคนลบ
         async for entry in guild.audit_logs(limit=1, action=discord.AuditLogAction.channel_delete):
             user = entry.user
             break
@@ -64,23 +109,22 @@ class AntiNuke(commands.Cog):
         now = time.time()
         self.action_log[user.id].append(now)
 
-        # เก็บเฉพาะ 10 วิล่าสุด
+        # เก็บเฉพาะใน 5 วิล่าสุด
         self.action_log[user.id] = [
             t for t in self.action_log[user.id] if now - t <= 5
         ]
 
-        # ถ้าลบเกิน 3 ห้องใน 5 วิ
+        # ลบเกิน 3 ห้องใน 5 วิ = แบน
         if len(self.action_log[user.id]) >= 3:
             try:
                 member = guild.get_member(user.id)
                 if member:
-                    await member.ban(reason="Anti-Nuke: ลบห้องรัวเกินกำหนด")
-            except:
-                pass
+                    await member.ban(reason="Anti-Nuke: ลบห้องเร็วเกินกำหนด")
+            except Exception as e:
+                print("ANTI-NUKE BAN ERROR:", e)
+
+            self.action_log[user.id].clear()
 
 
-# =========================
-# โหลด Cog
-# =========================
-async def setup(bot: commands.Bot):
+async def setup(bot):
     await bot.add_cog(AntiNuke(bot))
