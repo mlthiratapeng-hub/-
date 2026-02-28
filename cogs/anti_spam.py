@@ -19,13 +19,13 @@ class AntiSpam(commands.Cog):
 
         if interaction.guild is None:
             return await interaction.response.send_message(
-                "❌ ใช้ได้เฉพาะในเซิร์ฟเวอร์",
+                "💢 ใช้ได้เฉพาะในเซิร์ฟเวอร์",
                 ephemeral=True
             )
 
         if not interaction.user.guild_permissions.administrator:
             return await interaction.response.send_message(
-                "❌ Admin only",
+                "💢 Admin only",
                 ephemeral=True
             )
 
@@ -33,7 +33,7 @@ class AntiSpam(commands.Cog):
         self.enabled[interaction.guild.id] = not current
 
         await interaction.response.send_message(
-            f"📛 Anti-Spam {'ON' if not current else 'OFF'}",
+            f"💢 Anti-Spam {'ON' if not current else 'OFF'}",
             ephemeral=True
         )
 
@@ -70,7 +70,7 @@ class AntiSpam(commands.Cog):
             try:
                 await message.delete()
                 await message.channel.send(
-                    f"{message.author.mention} ❌ ห้ามสแปม",
+                    f"{message.author.mention} 💢 ห้ามสแปม",
                     delete_after=5
                 )
             except:
