@@ -6,7 +6,7 @@ import os
 import hashlib
 from urllib.parse import urlparse
 
-ALLOWED_GUILD_ID = 1476914330854490204
+ALLOWED_GUILD_ID = 1476624073990738022
 ALLOWED_CHANNEL_ID = 1476914330854490204
 
 VT_API = os.getenv("VT_API")
