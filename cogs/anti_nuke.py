@@ -17,7 +17,7 @@ class AntiNukeToggleView(discord.ui.View):
         anti_nuke_status[self.guild_id] = True
 
         embed = discord.Embed(
-            title="💣 ระบบป้องกันการลบห้องรัว (Anti-Nuke)",
+            title="💣 ระบบป้องกันการลบห้องรัวลบยศสร้างห้อง (Anti-Nuke)",
             description="📁 เปิดระบบเรียบร้อยแล้ว",
             color=discord.Color.green()
         )
