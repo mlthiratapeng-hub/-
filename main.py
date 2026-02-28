@@ -3,8 +3,11 @@ from discord.ext import commands
 import os
 from database import init_db
 
+# ====== ตั้งค่า ======
+ALLOWED_GUILD_ID = 1476624073990738022  # 🔥 ใส่ไอดีเซิร์ฟจริงของคุณ
+
 intents = discord.Intents.default()
-intents.message_content = True  # สำคัญมากสำหรับ !command
+intents.message_content = True
 
 class MyBot(commands.Bot):
     def __init__(self):
@@ -14,30 +17,30 @@ class MyBot(commands.Bot):
         )
 
     async def setup_hook(self):
+        # โหลดทุก cog
         for file in os.listdir("./cogs"):
             if file.endswith(".py"):
                 await self.load_extension(f"cogs.{file[:-3]}")
                 print(f"Loaded {file}")
+
+        # 🔥 สำคัญมาก: Sync แบบ Guild เท่านั้น
+        guild = discord.Object(id=ALLOWED_GUILD_ID)
+        synced = await self.tree.sync(guild=guild)
+        print(f"Synced {len(synced)} commands to guild")
 
 bot = MyBot()
 
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}")
-    try:
-        synced = await bot.tree.sync()
-        print(f"Slash synced {len(synced)} commands")
-    except Exception as e:
-        print(e)
 
-# ถ้าอยากดูว่าบอทอ่านข้อความไหม เปิดอันนี้
 @bot.event
 async def on_message(message):
     if message.author.bot:
         return
-    print("Message received:", message.content)
     await bot.process_commands(message)
 
+# เริ่มระบบ
 init_db()
 
 bot.run(os.getenv("TOKEN"))
