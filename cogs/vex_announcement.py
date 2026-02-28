@@ -3,6 +3,7 @@ from discord.ext import commands
 from discord import app_commands
 import json
 import os
+from datetime import datetime
 
 CHANNEL_NAME = "📁ประกาศVEX·⌒ﾞ🍇"
 DATA_FILE = "announcement_data.json"
@@ -26,9 +27,9 @@ class VEXAnnouncement(commands.Cog):
         self.bot = bot
         self.data = load_data()
 
-    # ==========================================
+    # ================================
     # 🔥 /สร้างห้อง
-    # ==========================================
+    # ================================
     @app_commands.command(name="สร้างห้อง")
     async def create_room(self, interaction: discord.Interaction):
 
@@ -36,7 +37,7 @@ class VEXAnnouncement(commands.Cog):
 
         if str(guild.id) in self.data:
             return await interaction.response.send_message(
-                "มีห้องอยู่แล้ว",
+                "มีห้องประกาศอยู่แล้ว",
                 ephemeral=True
             )
 
@@ -50,49 +51,46 @@ class VEXAnnouncement(commands.Cog):
             overwrites=overwrites
         )
 
-        # บันทึก ID ห้อง
         self.data[str(guild.id)] = channel.id
         save_data(self.data)
 
         await interaction.response.send_message(
-            f"สร้างห้อง {channel.mention} แล้ว",
+            f"สร้างห้อง {channel.mention} เรียบร้อยแล้ว",
             ephemeral=True
         )
 
-    # ==========================================
-    # 🔥 /op (ใช้ได้คนเดียว)
-    # ==========================================
-    @app_commands.command(name="op")
-    async def op(self, interaction: discord.Interaction, ข้อความ: str):
+    # ================================
+    # 🔥 !op
+    # ================================
+    @commands.command()
+    async def op(self, ctx, *, message):
 
-        # ล็อคให้ใช้ได้คนเดียว
-        if interaction.user.id != OWNER_ID:
-            return await interaction.response.send_message(
-                "ใช้ได้เเค่เจ้าของบอทคนเดียวเว้ยยยเจ๋งป่ะๆๆ",
-                ephemeral=True
-            )
+        if ctx.author.id != OWNER_ID:
+            return
 
         embed = discord.Embed(
-            description=ข้อความ,
+            title="🍇 VEX ANNOUNCEMENT",
+            description=message,
             color=discord.Color.black()
+        )
+
+        embed.set_footer(
+            text=f"VEX SYSTEM • {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"
         )
 
         sent_count = 0
 
         for guild_id, channel_id in self.data.items():
             channel = self.bot.get_channel(channel_id)
+
             if channel:
                 try:
                     await channel.send(embed=embed)
                     sent_count += 1
-                except:
-                    pass
+                except Exception as e:
+                    print("Send Error:", e)
 
-        await interaction.response.send_message(
-            f"ส่งแล้ว {sent_count} เซิร์ฟ",
-            ephemeral=True
-        )
-
+        await ctx.send(f"ส่งแล้ว {sent_count} เซิร์ฟเวอร์")
 
 async def setup(bot):
     await bot.add_cog(VEXAnnouncement(bot))
