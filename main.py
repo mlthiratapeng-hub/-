@@ -3,7 +3,8 @@ from discord.ext import commands
 import os
 from database import init_db
 
-intents = discord.Intents.all()
+intents = discord.Intents.default()
+intents.message_content = True  # สำคัญมากสำหรับ !command
 
 class MyBot(commands.Bot):
     def __init__(self):
@@ -23,8 +24,19 @@ bot = MyBot()
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}")
-    await bot.tree.sync()
-    print("Slash synced")
+    try:
+        synced = await bot.tree.sync()
+        print(f"Slash synced {len(synced)} commands")
+    except Exception as e:
+        print(e)
+
+# ถ้าอยากดูว่าบอทอ่านข้อความไหม เปิดอันนี้
+@bot.event
+async def on_message(message):
+    if message.author.bot:
+        return
+    print("Message received:", message.content)
+    await bot.process_commands(message)
 
 init_db()
 
