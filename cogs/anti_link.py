@@ -17,14 +17,14 @@ class AntiLink(commands.Cog):
 
         if interaction.guild is None:
             return await interaction.response.send_message(
-                "❌ ใช้ได้เฉพาะในเซิร์ฟเวอร์",
+                "💢 ใช้ได้เฉพาะในเซิร์ฟเวอร์",
                 ephemeral=True
             )
 
         # ใช้ได้เฉพาะแอดมิน
         if not interaction.user.guild_permissions.administrator:
             return await interaction.response.send_message(
-                "❌ Admin only",
+                "💢 Admin only",
                 ephemeral=True
             )
 
@@ -61,7 +61,7 @@ class AntiLink(commands.Cog):
             try:
                 await message.delete()
                 await message.channel.send(
-                    f"{message.author.mention} ❌ ห้ามส่งลิงก์",
+                    f"{message.author.mention} 💢 ห้ามส่งลิงก์",
                     delete_after=5
                 )
             except:
