@@ -2,7 +2,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-CHANNEL_NAME = "📁ประกาศVEX·⌒ﾞ🍇"
+CHANNEL_NAME = "🍇ประกาศVEX"
 
 class VEXAnnouncement(commands.Cog):
     def __init__(self, bot):
@@ -52,7 +52,7 @@ class VEXAnnouncement(commands.Cog):
     async def kong(self, ctx, *, message):
 
         embed = discord.Embed(
-            title="📁 ประกาศจาก VEX·⌒ﾞ🍇",
+            title="🍇ประกาศVEX",
             description=message,
             color=discord.Color.purple()
         )
