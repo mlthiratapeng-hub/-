@@ -1,90 +1,99 @@
 import discord
-from discord.ext import commands, tasks
 from discord import app_commands
+from discord.ext import commands, tasks
 
 class CheckOperation(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.auto_channel_id = None
         self.auto_guild_id = None
-        self.auto_report.start()
 
-    def cog_unload(self):
-        self.auto_report.cancel()
+    # ==============================
+    # ฟังก์ชันเช็คบอท
+    # ==============================
+    async def generate_report(self, guild: discord.Guild):
+        online_bots = []
+        offline_bots = []
 
-    def generate_report(self, guild: discord.Guild):
-        bots = [m for m in guild.members if m.bot]
-
-        online = []
-        offline = []
-
-        for bot in bots:
-            if bot.status in [discord.Status.online, discord.Status.idle, discord.Status.dnd]:
-                online.append(bot)
-            else:
-                offline.append(bot)
+        for member in guild.members:
+            if member.bot:
+                if member.status == discord.Status.offline:
+                    offline_bots.append(member.name)
+                else:
+                    online_bots.append(member.name)
 
         embed = discord.Embed(
-            title="📁 System | Check the Operation",
+            title="📁 Check the Operation",
             color=discord.Color.blue()
         )
 
         embed.add_field(
-            name="💾 บอททั้งหมด",
-            value=f"{len(bots)} ตัว",
+            name="🟢 Online Bots",
+            value="\n".join(online_bots) if online_bots else "ไม่มี",
             inline=False
         )
 
         embed.add_field(
-            name="🍃 ออนไลน์",
-            value=f"{len(online)} ตัว",
-            inline=True
+            name="🔴 Offline Bots",
+            value="\n".join(offline_bots) if offline_bots else "ไม่มี",
+            inline=False
         )
 
-        embed.add_field(
-            name="💢 ออฟไลน์",
-            value=f"{len(offline)} ตัว",
-            inline=True
-        )
-
-        if offline:
-            names = "\n".join([f"• {b.name}" for b in offline])
-            embed.add_field(
-                name="⚠ บอทที่ไม่ออนไลน์",
-                value=names,
-                inline=False
-            )
-
-        embed.set_footer(text="อัปเดตทุก 1 ชั่วโมง")
+        embed.set_footer(text="Bot Monitoring System")
 
         return embed
 
-    @app_commands.command(name="Check the operation", description="ตรวจสอบสถานะบอทในเซิร์ฟ")
-    async def check_operation(self, interaction: discord.Interaction):
-
+    # ==============================
+    # Slash Command
+    # ==============================
+    @app_commands.command(
+        name="check_operation",
+        description="ตรวจสอบว่าบอทในเซิร์ฟออนไลน์กี่ตัว"
+    )
+    @app_commands.checks.has_permissions(administrator=True)
+    async def check_operation(
+        self,
+        interaction: discord.Interaction,
+        channel: discord.TextChannel
+    ):
         guild = interaction.guild
-        embed = self.generate_report(guild)
 
-        # บันทึกช่องสำหรับรายงานอัตโนมัติ
-        self.auto_channel_id = interaction.channel.id
+        embed = await self.generate_report(guild)
+
+        await channel.send(embed=embed)
+        await interaction.response.send_message(
+            "✅ ตั้งค่าห้องรายงานอัตโนมัติแล้ว (ทุก 1 ชั่วโมง)",
+            ephemeral=True
+        )
+
+        # เก็บค่าห้องไว้สำหรับ auto
+        self.auto_channel_id = channel.id
         self.auto_guild_id = guild.id
 
-        await interaction.response.send_message(embed=embed)
+        if not self.auto_report.is_running():
+            self.auto_report.start()
 
+    # ==============================
+    # Auto Report ทุก 1 ชั่วโมง
+    # ==============================
     @tasks.loop(hours=1)
     async def auto_report(self):
-        if self.auto_channel_id and self.auto_guild_id:
-            guild = self.bot.get_guild(self.auto_guild_id)
-            channel = guild.get_channel(self.auto_channel_id)
+        if not self.auto_channel_id or not self.auto_guild_id:
+            return
 
-            if guild and channel:
-                embed = self.generate_report(guild)
-                await channel.send(embed=embed)
+        guild = self.bot.get_guild(self.auto_guild_id)
+        channel = self.bot.get_channel(self.auto_channel_id)
+
+        if guild and channel:
+            embed = await self.generate_report(guild)
+            await channel.send(embed=embed)
 
     @auto_report.before_loop
-    async def before_auto(self):
+    async def before_auto_report(self):
         await self.bot.wait_until_ready()
 
-
+# ==============================
+# Setup
+# ==============================
 async def setup(bot):
     await bot.add_cog(CheckOperation(bot))
