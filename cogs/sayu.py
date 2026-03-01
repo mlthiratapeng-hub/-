@@ -33,55 +33,61 @@ def generate_image(text):
     # ===== วาดตัวอักษร =====
     for i, char in enumerate(text):
         x = spacing * (i + 1)
-        y = random.randint(50, 65)
+        y = random.randint(55, 65)
 
         char_layer = Image.new("RGBA", (140, 140), (255, 255, 255, 0))
         char_draw = ImageDraw.Draw(char_layer)
 
         char_draw.text((40, 25), char, font=font, fill=(0, 0, 0))
 
-        angle = random.randint(-15, 15)
+        angle = random.randint(-12, 12)
         rotated = char_layer.rotate(angle, resample=Image.BICUBIC, expand=True)
 
         image.paste(rotated, (x - 70, y - 70), rotated)
 
         char_centers.append((x, y))
 
-    # ===== เส้นตัดตัวอักษร (ตัดแค่ 2 ตัว) =====
-    cut_indices = random.sample(range(len(char_centers)), 2)
+    # ===================================================
+    # 🔥 เส้นตรงพาดกลางภาพ (ตัดหลายตัวแน่นอน)
+    # ===================================================
+    mid_y = random.randint(70, 100)
 
-    for idx in cut_indices:
-        x, y = char_centers[idx]
+    draw.line(
+        (0, mid_y, width, mid_y + random.randint(-10, 10)),
+        fill=(80, 100, 140),
+        width=3,
+    )
 
-        draw.line(
-            (
-                x - 45,
-                y + random.randint(-10, 10),
-                x + 45,
-                y + random.randint(-10, 10),
-            ),
-            fill=(random.randint(60, 120), random.randint(60, 120), random.randint(60, 120)),
-            width=3,
-        )
+    # ===================================================
+    # 🔥 เส้นโค้งพาดผ่านอย่างน้อย 2 ตัว
+    # ===================================================
+    first = char_centers[1]
+    last = char_centers[-2]
 
-    # ===== เส้นรบกวนพื้นหลังเล็กน้อย =====
-    for _ in range(6):
-        draw.line(
-            (
-                random.randint(0, width),
-                random.randint(0, height),
-                random.randint(0, width),
-                random.randint(0, height),
-            ),
-            fill=(random.randint(120, 170), random.randint(120, 170), random.randint(120, 170)),
-            width=2,
-        )
+    arc_box = [
+        first[0] - 120,
+        first[1] - 80,
+        last[0] + 120,
+        last[1] + 80,
+    ]
 
-    # ===== Noise เบา ๆ =====
-    for _ in range(200):
+    draw.arc(
+        arc_box,
+        start=20,
+        end=160,
+        fill=(120, 80, 120),
+        width=3,
+    )
+
+    # ===================================================
+    # Noise เบา ๆ
+    # ===================================================
+    for _ in range(180):
         draw.point(
             (random.randint(0, width), random.randint(0, height)),
-            fill=(random.randint(160, 210), random.randint(160, 210), random.randint(160, 210)),
+            fill=(random.randint(160, 210),
+                  random.randint(160, 210),
+                  random.randint(160, 210)),
         )
 
     buffer = io.BytesIO()
@@ -108,7 +114,7 @@ class CaptchaModal(Modal):
 
         if user_id not in captcha_cache:
             await interaction.response.send_message(
-                "🍓 คุณยังไม่ได้กดสุ่มรหัส",
+                "🍒 คุณยังไม่ได้กดสุ่มรหัส",
                 ephemeral=True
             )
             return
@@ -120,12 +126,12 @@ class CaptchaModal(Modal):
             del captcha_cache[user_id]
 
             await interaction.response.send_message(
-                f"🍇 สำเร็จ ได้รับยศ {self.role.mention}",
+                f"🍃 สำเร็จ ได้รับยศ {self.role.mention}",
                 ephemeral=True
             )
         else:
             await interaction.response.send_message(
-                "🥩 รหัสไม่ถูกต้อง กดสุ่มใหม่อีกครั้ง",
+                "🌶️ รหัสไม่ถูกต้อง กดสุ่มใหม่อีกครั้ง",
                 ephemeral=True
             )
 
@@ -194,7 +200,7 @@ class Sayu(commands.Cog):
         await channel.send(embed=embed, view=VerifyView(role))
 
         await interaction.response.send_message(
-            "🍃 สร้างระบบเรียบร้อยแล้ว",
+            "🍇 สร้างระบบเรียบร้อยแล้ว",
             ephemeral=True
         )
 
