@@ -8,6 +8,7 @@ import sqlite3
 class AISystem(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.active_channels = set()  # ห้องที่ AI เปิดอยู่
 
         # ===== DATABASE =====
         self.db = sqlite3.connect("ai_data.db")
@@ -24,14 +25,14 @@ class AISystem(commands.Cog):
         """)
         self.db.commit()
 
-        self.bad_words = ["ควาย", "โง่", "เหี้ย", "กาก", "ไอ้", "สัส", "หน้าหี", "ตอเเหล", "เย็ด", "เงี่ยน", "เสียว", "เเตก"]
-        self.good_words = ["รัก", "เก่ง", "ขอบคุณ", "น่ารัก", "สวย"]
+        self.bad_words = ["ควาย", "โง่", "เหี้ย", "กาก", "ไอ้", "สัส", "เย็ด", "หี", "เสียว", "เงี่ยน", "ไม่ฉลาด"]
+        self.good_words = ["รัก", "เก่ง", "ขอบคุณ", "น่ารัก", "เทพ"]
 
     # ===============================
     # DATABASE FUNCTIONS
     # ===============================
     def get_user(self, user_id):
-        self.cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
+        self.cursor.execute("SELECT * FROM users WHERE user_id=?", (user_id,))
         user = self.cursor.fetchone()
 
         if user is None:
@@ -53,87 +54,97 @@ class AISystem(commands.Cog):
             self.cursor.execute("UPDATE users SET ever_bad=? WHERE user_id=?", (ever_bad, user_id))
         if last_reward is not None:
             self.cursor.execute("UPDATE users SET last_reward=? WHERE user_id=?", (last_reward, user_id))
-
         self.db.commit()
 
     # ===============================
-    # ตรวจข้อความ
+    # เปิด AI ในห้อง
+    # ===============================
+    @app_commands.command(name="open_ai", description="เปิด AI ในห้องนี้")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def open_ai(self, interaction: discord.Interaction, channel: discord.TextChannel):
+
+        self.active_channels.add(channel.id)
+
+        embed = discord.Embed(
+            title="🍇เปิด AI สำเร็จ",
+            description=f"AI จะตอบอัตโนมัติในห้อง {channel.mention}",
+            color=discord.Color.green()
+        )
+
+        await interaction.response.send_message(embed=embed)
+
+    # ===============================
+    # ปิด AI
+    # ===============================
+    @app_commands.command(name="close_ai", description="ปิด AI ในห้องนี้")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def close_ai(self, interaction: discord.Interaction, channel: discord.TextChannel):
+
+        self.active_channels.discard(channel.id)
+
+        embed = discord.Embed(
+            title="🍅 ปิด AI แล้ว",
+            description=f"AI จะไม่ตอบในห้อง {channel.mention}",
+            color=discord.Color.red()
+        )
+
+        await interaction.response.send_message(embed=embed)
+
+    # ===============================
+    # AI ตอบอัตโนมัติ
     # ===============================
     @commands.Cog.listener()
     async def on_message(self, message):
         if message.author.bot:
             return
 
+        if message.channel.id not in self.active_channels:
+            return
+
         user = self.get_user(message.author.id)
         relationship = user[1]
+        ever_bad = user[3]
+
+        if relationship == 0:
+            return
 
         content = message.content.lower()
 
-        # คำไม่ดี
+        # ตรวจคำไม่ดี
         for word in self.bad_words:
             if word in content:
                 relationship -= 20
                 if relationship < 0:
                     relationship = 0
-
                 self.update_user(message.author.id, relationship=relationship, ever_bad=1)
-
-                embed = discord.Embed(
-                    title="💔 เสียใจ...",
-                    description="พูดไม่ดีเลย ความสัมพันธ์ -20",
-                    color=discord.Color.red()
-                )
-                await message.channel.send(embed=embed)
+                await message.channel.send("💔 อย่าพูดแบบนั้นสิ...")
                 return
 
-        # คำดี
+        # ตรวจคำดี
         for word in self.good_words:
             if word in content:
-                relationship += 3
+                relationship += 10
                 if relationship > 2000:
                     relationship = 2000
-
                 self.update_user(message.author.id, relationship=relationship)
-
-                embed = discord.Embed(
-                    title="💖 ดีใจ",
-                    description="พูดดีจัง ความสัมพันธ์ +3",
-                    color=discord.Color.green()
-                )
-                await message.channel.send(embed=embed)
+                await message.channel.send("💖 ดีใจจังที่พูดแบบนี้")
                 return
 
-    # ===============================
-    # OPEN AI (ADMIN ONLY)
-    # ===============================
-    @app_commands.command(name="open_ai", description="คุยกับ Ai (แอดมินเท่านั้น)")
-    @app_commands.checks.has_permissions(administrator=True)
-    async def open_ai(self, interaction: discord.Interaction, message: str):
-
-        user = self.get_user(interaction.user.id)
-        relationship = user[1]
-
-        if relationship == 0:
-            return await interaction.response.send_message(
-                "🛑 Ai ไม่อยากคุยกับคุณแล้ว...", ephemeral=True
-            )
-
+        # ตอบปกติ
         if relationship < 300:
-            reply = "เรายังไม่โอเคนะ..."
+            reply = "เรายังไม่ค่อยโอเคนะ..."
         elif relationship < 700:
-            reply = f"อืมม... {message}"
+            reply = f"อืม... {message.content}"
         elif relationship < 1200:
-            reply = f"😊 ฟังดูดีนะที่พูดว่า '{message}'"
+            reply = f"😊 ฟังดูดีนะ"
         else:
-            reply = f"❤️ เราชอบมากเลยที่เธอพูดว่า '{message}'"
+            reply = f"❤️ เราชอบที่เธอพูดแบบนั้น"
 
-        embed = discord.Embed(
-            title="Ai ตอบกลับ",
-            description=reply,
-            color=discord.Color.blue()
-        )
+        # ถ้ามีรูปแนบมา
+        if message.attachments:
+            reply += "\n📷 ฮั่นเเน่"
 
-        await interaction.response.send_message(embed=embed)
+        await message.channel.send(reply)
 
     # ===============================
     # STATUS
@@ -152,7 +163,7 @@ class AISystem(commands.Cog):
         elif relationship < 700:
             mood = "😐 เฉยๆ"
         elif relationship < 1200:
-            mood = "😊 ชอบ"
+            mood = "😊 ชอบนะ"
         else:
             mood = "❤️ รักเลย"
 
@@ -163,94 +174,6 @@ class AISystem(commands.Cog):
         )
 
         await interaction.response.send_message(embed=embed)
-
-    # ===============================
-    # BALANCE
-    # ===============================
-    @app_commands.command(name="balance", description="เช็คเงินของคุณ")
-    async def balance(self, interaction: discord.Interaction):
-
-        user = self.get_user(interaction.user.id)
-        money = user[2]
-
-        embed = discord.Embed(
-            title="💰 กระเป๋าเงิน",
-            description=f"คุณมี {money} เหรียญ",
-            color=discord.Color.gold()
-        )
-
-        await interaction.response.send_message(embed=embed)
-
-    # ===============================
-    # FLOWER
-    # ===============================
-    @app_commands.command(name="flower", description="ซื้อดอกไม้ให้ Ai")
-    async def flower(self, interaction: discord.Interaction, price: int):
-
-        if price not in [50, 250, 500]:
-            return await interaction.response.send_message("เลือกได้แค่ 50 / 250 / 500", ephemeral=True)
-
-        user = self.get_user(interaction.user.id)
-        relationship = user[1]
-        money = user[2]
-
-        if money < price:
-            return await interaction.response.send_message("เงินไม่พอ585848585959559559555549555", ephemeral=True)
-
-        relationship += price
-        if relationship > 2000:
-            relationship = 2000
-
-        money -= price
-
-        self.update_user(interaction.user.id, relationship=relationship, money=money)
-
-        embed = discord.Embed(
-            title="🌸 ให้ดอกไม้สำเร็จ",
-            description=f"ความสัมพันธ์ +{price}\nตอนนี้: {relationship}/2000",
-            color=discord.Color.pink()
-        )
-
-        await interaction.response.send_message(embed=embed)
-
-    # ===============================
-    # REWARD (3 ชั่วโมง)
-    # ===============================
-    @app_commands.command(name="reward", description="รับเงินซื้อดอกไม้ (3 ชม.)")
-    async def reward(self, interaction: discord.Interaction):
-
-        user = self.get_user(interaction.user.id)
-        last_reward = user[4]
-        money = user[2]
-
-        now = time.time()
-
-        if now - last_reward < 10800:
-            remaining = int((10800 - (now - last_reward)) / 60)
-            return await interaction.response.send_message(
-                f"⏳ ต้องรออีก {remaining} นาทีนะค่ะ", ephemeral=True
-            )
-
-        roll = random.randint(1, 100)
-
-        if roll <= 50:
-            amount = random.randint(50, 100)
-        elif roll <= 90:
-            amount = random.randint(200, 400)
-        else:
-            amount = 500
-
-        money += amount
-        self.update_user(interaction.user.id, money=money, last_reward=now)
-
-        embed = discord.Embed(
-            title="🎁 Ai ให้รางวัล",
-            description=f"คุณได้รับ {amount} เหรียญ 💰",
-            color=discord.Color.green()
-        )
-
-        await interaction.response.send_message(embed=embed)
-
 
 async def setup(bot):
     await bot.add_cog(AISystem(bot))
