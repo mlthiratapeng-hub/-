@@ -68,7 +68,7 @@ class CheckOperation(commands.Cog):
     # -------------------------
     # Slash Command (Admin Only)
     # -------------------------
-    @app_commands.command(name="check_operation", description="Check bot status in this server")
+    @app_commands.command(name="check_operation", description="เช็คการทำงานของบอททั้งเซิฟ")
     @app_commands.checks.has_permissions(administrator=True)
     async def check_operation(self, interaction: discord.Interaction, channel: discord.TextChannel):
 
@@ -77,7 +77,7 @@ class CheckOperation(commands.Cog):
 
         embed = await self.generate_report(interaction.guild)
 
-        await interaction.response.send_message("✅ ตั้งค่าห้องเรียบร้อย", ephemeral=True)
+        await interaction.response.send_message("🍃 ตั้งค่าห้องเรียบร้อย", ephemeral=True)
         await channel.send(embed=embed)
 
     # -------------------------
