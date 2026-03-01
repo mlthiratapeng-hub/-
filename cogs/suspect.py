@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from discord.ui import View, Button, Modal, TextInput, Select
+from discord.ui import View, Modal, TextInput, Select
 from PIL import Image, ImageDraw, ImageFont
 import random
 import string
@@ -63,23 +63,28 @@ class CaptchaModal(Modal):
         self.add_item(self.answer)
 
     async def on_submit(self, interaction: discord.Interaction):
+
         if self.answer.value.upper() == self.correct_text:
             try:
                 await interaction.user.add_roles(self.role)
+
                 embed = discord.Embed(
-                    title="🍃 ยืนยันสำเร็จ",
-                    description=f"คุณได้รับยศ {self.role.mention}",
+                    title="🍇 ยืนยันสำเร็จ",
+                    description=f"ได้รับยศ {self.role.mention}",
                     color=discord.Color.green(),
                 )
-            except:
+
+            except discord.Forbidden:
                 embed = discord.Embed(
                     title="⚠ บอทให้ยศไม่ได้",
-                    description="เช็คว่า role บอทสูงกว่ายศที่ให้",
+                    description="เช็ค role บอทต้องสูงกว่ายศที่ให้",
                     color=discord.Color.orange(),
                 )
+
         else:
             embed = discord.Embed(
-                title="🍓 รหัสไม่ถูกต้อง",
+                title="💢 รหัสไม่ถูกต้อง",
+                description="ลองใหม่อีกครั้ง",
                 color=discord.Color.red(),
             )
 
@@ -91,35 +96,40 @@ class CaptchaModal(Modal):
 class RoleSelect(Select):
     def __init__(self, roles):
         options = [
-            discord.SelectOption(label=role.name, value=str(role.id))
-            for role in roles[:25]
+            discord.SelectOption(label=r.name, value=str(r.id))
+            for r in roles[:25]
         ]
 
         super().__init__(
-            placeholder="เลือกยศที่จะให้เมื่อยืนยันสำเร็จ",
+            placeholder="เลือกยศที่จะให้หลังยืนยัน",
             options=options,
         )
 
     async def callback(self, interaction: discord.Interaction):
+
         role_id = int(self.values[0])
         role = interaction.guild.get_role(role_id)
 
         captcha_text = generate_captcha_text()
         image_buffer = generate_captcha_image(captcha_text)
+
         file = discord.File(image_buffer, filename="captcha.png")
 
         embed = discord.Embed(
             title="🔐 Identity Verification",
-            description="กรอกรหัสตามภาพ แล้วกดส่ง",
+            description="พิมพ์รหัสจากภาพในช่องที่ขึ้นมา",
             color=discord.Color.blurple(),
         )
         embed.set_image(url="attachment://captcha.png")
 
+        # ส่งภาพก่อน
         await interaction.response.send_message(
             embed=embed,
             file=file,
+            ephemeral=True,
         )
 
+        # แล้วค่อยเปิด modal
         await interaction.followup.send_modal(
             CaptchaModal(captcha_text, role)
         )
@@ -127,7 +137,7 @@ class RoleSelect(Select):
 
 class RoleSelectView(View):
     def __init__(self, roles):
-        super().__init__(timeout=180)
+        super().__init__(timeout=300)
         self.add_item(RoleSelect(roles))
 
 
@@ -139,14 +149,22 @@ class Suspect(commands.Cog):
 
     @app_commands.command(
         name="suspect",
-        description="ระบบยืนยันตัวตนด้วยภาพ",
+        description="ระบบยืนยันตัวตนด้วย captcha",
     )
-    async def verify_identity(self, interaction: discord.Interaction):
+    async def suspect(self, interaction: discord.Interaction):
 
-        # ต้องเป็นแอดมินเซิร์ฟปลายทาง
+        # ต้องใช้ในเซิร์ฟเท่านั้น
+        if not interaction.guild:
+            await interaction.response.send_message(
+                "ใช้ได้เฉพาะในเซิร์ฟเวอร์",
+                ephemeral=True,
+            )
+            return
+
+        # ต้องเป็นแอดมินของเซิร์ฟปลายทาง
         if not interaction.user.guild_permissions.administrator:
             await interaction.response.send_message(
-                "🍎ใช้ได้เฉพาะแอดมินของเซิร์ฟนี้",
+                "ใช้ได้เฉพาะแอดมินของเซิร์ฟนี้",
                 ephemeral=True,
             )
             return
@@ -155,21 +173,20 @@ class Suspect(commands.Cog):
         main_guild = self.bot.get_guild(MAIN_GUILD_ID)
         if not main_guild or not main_guild.get_member(interaction.user.id):
             await interaction.response.send_message(
-                "🥩คุณต้องอยู่ในเซิร์ฟหลักก่อน",
+                "คุณต้องอยู่ในเซิร์ฟหลักก่อน",
                 ephemeral=True,
             )
             return
 
-        # ดึง role ที่บอทสามารถให้ได้
+        # role ที่บอทให้ได้
         roles = [
-            r
-            for r in interaction.guild.roles
+            r for r in interaction.guild.roles
             if r < interaction.guild.me.top_role and not r.is_default()
         ]
 
         if not roles:
             await interaction.response.send_message(
-                "💢ไม่มียศที่บอทให้ได้",
+                "ไม่มียศที่บอทสามารถให้ได้",
                 ephemeral=True,
             )
             return
