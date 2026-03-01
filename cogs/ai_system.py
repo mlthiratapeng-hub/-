@@ -7,13 +7,20 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 load_dotenv()
-client = OpenAI(api_key=os.getenv("OPENAI_KEY"))
+
+OPENAI_KEY = os.getenv("OPENAI_KEY")
+
+if not OPENAI_KEY:
+    print("❌ OPENAI_KEY NOT FOUND")
+
+client = OpenAI(api_key=OPENAI_KEY)
+
 
 class AISystem(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.active_channels = set()
-        self.memory = {}  # เก็บประวัติแชทรายคน
+        self.memory = {}
 
         # ===== DATABASE =====
         self.db = sqlite3.connect("ai_data.db")
@@ -32,6 +39,7 @@ class AISystem(commands.Cog):
     def get_user(self, user_id):
         self.cursor.execute("SELECT * FROM users WHERE user_id=?", (user_id,))
         user = self.cursor.fetchone()
+
         if user is None:
             self.cursor.execute(
                 "INSERT INTO users (user_id, relationship) VALUES (?, 50)",
@@ -39,6 +47,7 @@ class AISystem(commands.Cog):
             )
             self.db.commit()
             return (user_id, 50)
+
         return user
 
     # ==========================
@@ -59,7 +68,7 @@ class AISystem(commands.Cog):
         await interaction.response.send_message("🔴 ปิด AI แล้ว", ephemeral=True)
 
     # ==========================
-    # GENERATE AI (Streaming + Vision)
+    # GENERATE AI
     # ==========================
     async def generate_reply(self, message, relationship):
 
@@ -77,18 +86,17 @@ class AISystem(commands.Cog):
         if user_id not in self.memory:
             self.memory[user_id] = []
 
-        # เก็บข้อความล่าสุด 6 อัน
-        self.memory[user_id].append({"role": "user", "content": message.content})
+        self.memory[user_id].append({
+            "role": "user",
+            "content": message.content
+        })
+
         self.memory[user_id] = self.memory[user_id][-6:]
 
         content = [
-            {
-                "type": "text",
-                "text": message.content
-            }
+            {"type": "text", "text": message.content}
         ]
 
-        # ถ้ามีรูปแนบ
         for attach in message.attachments:
             if attach.content_type and "image" in attach.content_type:
                 content.append({
@@ -96,35 +104,39 @@ class AISystem(commands.Cog):
                     "image_url": {"url": attach.url}
                 })
 
-        stream = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {
-                    "role": "system",
-                    "content": f"""
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": f"""
 คุณคือ VEX AI
 บุคลิก: {mood}
 คะแนนความสัมพันธ์: {relationship}
 ตอบแบบธรรมชาติ ไม่ยาวเกินไป
 """
-                },
-                *self.memory[user_id],
-                {
-                    "role": "user",
-                    "content": content
-                }
-            ],
-            temperature=0.9,
-            stream=True
-        )
+                    },
+                    *self.memory[user_id],
+                    {
+                        "role": "user",
+                        "content": content
+                    }
+                ],
+                temperature=0.8
+            )
 
-        reply_text = ""
+            reply_text = response.choices[0].message.content
 
-        async for chunk in stream:
-            if chunk.choices[0].delta.content:
-                reply_text += chunk.choices[0].delta.content
+        except Exception as e:
+            print("🔥 OPENAI ERROR:", e)
+            return "⚠️ ระบบ AI ขัดข้อง"
 
-        self.memory[user_id].append({"role": "assistant", "content": reply_text})
+        self.memory[user_id].append({
+            "role": "assistant",
+            "content": reply_text
+        })
+
         self.memory[user_id] = self.memory[user_id][-6:]
 
         return reply_text
@@ -153,7 +165,7 @@ class AISystem(commands.Cog):
                 await message.channel.send(reply)
 
         except Exception as e:
-            print("AI Error:", e)
+            print("🔥 AI LISTENER ERROR:", e)
             await message.channel.send("⚠️ AI มีปัญหา")
 
 
