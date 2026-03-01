@@ -20,92 +20,94 @@ def generate_text():
 def generate_image(text):
     width, height = 420, 170
 
-    # Layer แยก
-    base = Image.new("RGB", (width, height), (255, 255, 255))
-    text_layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-    line_layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-
-    draw_text = ImageDraw.Draw(text_layer)
-    draw_line = ImageDraw.Draw(line_layer)
+    image = Image.new("RGB", (width, height), (255, 255, 255))
+    draw = ImageDraw.Draw(image)
 
     try:
-        font = ImageFont.truetype("arial.ttf", 75)
+        font = ImageFont.truetype("arial.ttf", 80)
     except:
         font = ImageFont.load_default()
 
     spacing = width // (len(text) + 1)
     char_boxes = []
 
-    # ===== ตัวอักษร (ชัดมาก) =====
+    # ===== วาดตัวอักษร =====
     for i, char in enumerate(text):
         x = spacing * (i + 1)
-        y = random.randint(60, 80)
+        y = random.randint(65, 85)
 
-        # stroke ทำให้ชัด
-        draw_text.text(
+        draw.text(
             (x, y),
             char,
             font=font,
             fill=(0, 0, 0),
             anchor="mm",
-            stroke_width=3,
+            stroke_width=2,
             stroke_fill=(255, 255, 255),
         )
 
-        bbox = draw_text.textbbox((x, y), char, font=font, anchor="mm")
+        bbox = draw.textbbox((x, y), char, font=font, anchor="mm")
         char_boxes.append(bbox)
 
-    # ===== เส้นตัดจริงอย่างน้อย 2 ตัว =====
-    chosen = random.sample(char_boxes, min(2, len(char_boxes)))
+    # ===================================================
+    # 🔥 เส้นกินเนื้อตัวอักษรจริง 3-5 เส้น
+    # ===================================================
 
-    for box in chosen:
+    heavy_lines = random.randint(3, 5)
+    chosen_boxes = random.sample(char_boxes, min(heavy_lines, len(char_boxes)))
+
+    for box in chosen_boxes:
         x1, y1, x2, y2 = box
-        center_y = (y1 + y2) // 2
 
-        draw_line.line(
-            (x1 - 20, center_y,
-             x2 + 20, center_y + random.randint(-8, 8)),
-            fill=(random.randint(40, 100),
-                  random.randint(40, 100),
-                  random.randint(40, 100),
-                  180),
-            width=5
+        start_x = random.randint(x1 - 10, x1 + 10)
+        end_x = random.randint(x2 - 10, x2 + 10)
+
+        start_y = random.randint(y1, y2)
+        end_y = random.randint(y1, y2)
+
+        draw.line(
+            (start_x, start_y, end_x, end_y),
+            fill=(random.randint(40, 90),
+                  random.randint(40, 90),
+                  random.randint(40, 90)),
+            width=random.randint(8, 14),
         )
 
-    # ===== เส้นมั่วแบบรูป 2 =====
-    for _ in range(random.randint(4, 7)):
-        draw_line.line(
+    # ===================================================
+    # 🔥 เส้นมั่วทั่วภาพ 8-15 เส้น
+    # ===================================================
+
+    for _ in range(random.randint(8, 15)):
+        draw.line(
             (
                 random.randint(0, width),
                 random.randint(0, height),
                 random.randint(0, width),
                 random.randint(0, height),
             ),
-            fill=(random.randint(60, 150),
-                  random.randint(60, 150),
-                  random.randint(60, 150),
-                  160),
-            width=random.randint(3, 6),
+            fill=(random.randint(60, 160),
+                  random.randint(60, 160),
+                  random.randint(60, 160)),
+            width=random.randint(3, 8),
         )
 
-    # ===== noise =====
-    for _ in range(250):
-        base.putpixel(
+    # ===================================================
+    # Noise หนักขึ้น
+    # ===================================================
+
+    for _ in range(600):
+        draw.point(
             (random.randint(0, width - 1),
              random.randint(0, height - 1)),
-            (
-                random.randint(180, 220),
-                random.randint(180, 220),
-                random.randint(180, 220),
+            fill=(
+                random.randint(150, 220),
+                random.randint(150, 220),
+                random.randint(150, 220),
             ),
         )
 
-    # รวม layer
-    combined = Image.alpha_composite(base.convert("RGBA"), line_layer)
-    combined = Image.alpha_composite(combined, text_layer)
-
     buffer = io.BytesIO()
-    combined.convert("RGB").save(buffer, format="PNG")
+    image.save(buffer, format="PNG")
     buffer.seek(0)
     return buffer
 
@@ -159,7 +161,6 @@ class VerifyView(View):
 
     @discord.ui.button(label="สุ่มรหัส", style=discord.ButtonStyle.blurple)
     async def generate(self, interaction: discord.Interaction, button: Button):
-
         await interaction.response.defer(ephemeral=True)
 
         text = generate_text()
