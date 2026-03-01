@@ -28,7 +28,7 @@ def generate_image(text):
         font = ImageFont.load_default()
 
     spacing = width // (len(text) + 1)
-    char_centers = []
+    char_boxes = []
 
     # ===== วาดตัวอักษร =====
     for i, char in enumerate(text):
@@ -43,51 +43,64 @@ def generate_image(text):
         angle = random.randint(-12, 12)
         rotated = char_layer.rotate(angle, resample=Image.BICUBIC, expand=True)
 
-        image.paste(rotated, (x - 70, y - 70), rotated)
+        paste_x = x - rotated.width // 2
+        paste_y = y - rotated.height // 2
 
-        char_centers.append((x, y))
+        image.paste(rotated, (paste_x, paste_y), rotated)
 
-    # ===================================================
-    # 🔥 เส้นตรงพาดกลางภาพ (ตัดหลายตัวแน่นอน)
-    # ===================================================
-    mid_y = random.randint(70, 100)
-
-    draw.line(
-        (0, mid_y, width, mid_y + random.randint(-10, 10)),
-        fill=(80, 100, 140),
-        width=3,
-    )
+        # เก็บกรอบคร่าว ๆ ของตัวอักษร
+        char_boxes.append((
+            paste_x,
+            paste_y,
+            paste_x + rotated.width,
+            paste_y + rotated.height
+        ))
 
     # ===================================================
-    # 🔥 เส้นโค้งพาดผ่านอย่างน้อย 2 ตัว
+    # 🔥 เส้นตัดทับตัวอักษรจริง อย่างน้อย 2 เส้น
     # ===================================================
-    first = char_centers[1]
-    last = char_centers[-2]
 
-    arc_box = [
-        first[0] - 120,
-        first[1] - 80,
-        last[0] + 120,
-        last[1] + 80,
-    ]
+    chosen_boxes = random.sample(char_boxes, 2)
 
-    draw.arc(
-        arc_box,
-        start=20,
-        end=160,
-        fill=(120, 80, 120),
-        width=3,
-    )
+    for box in chosen_boxes:
+        x1, y1, x2, y2 = box
+
+        center_y = (y1 + y2) // 2
+
+        # เส้นพาดทะลุตัวอักษรแนวนอน
+        draw.line(
+            (x1 - 20, center_y, x2 + 20, center_y + random.randint(-5, 5)),
+            fill=(random.randint(60,120), random.randint(60,120), random.randint(60,120)),
+            width=4
+        )
+
+    # ===================================================
+    # 🔥 เพิ่มเส้นสุ่มอีก 1-3 เส้น (อาจจะตัดหลายตัว)
+    # ===================================================
+    extra_lines = random.randint(1, 3)
+
+    for _ in range(extra_lines):
+        start_x = random.randint(0, width // 3)
+        end_x = random.randint(width // 2, width)
+
+        start_y = random.randint(60, 100)
+        end_y = random.randint(60, 100)
+
+        draw.line(
+            (start_x, start_y, end_x, end_y),
+            fill=(random.randint(80,150), random.randint(80,150), random.randint(80,150)),
+            width=3
+        )
 
     # ===================================================
     # Noise เบา ๆ
     # ===================================================
-    for _ in range(180):
+    for _ in range(150):
         draw.point(
             (random.randint(0, width), random.randint(0, height)),
-            fill=(random.randint(160, 210),
-                  random.randint(160, 210),
-                  random.randint(160, 210)),
+            fill=(random.randint(170, 220),
+                  random.randint(170, 220),
+                  random.randint(170, 220)),
         )
 
     buffer = io.BytesIO()
@@ -126,7 +139,7 @@ class CaptchaModal(Modal):
             del captcha_cache[user_id]
 
             await interaction.response.send_message(
-                f"🍃 สำเร็จ ได้รับยศ {self.role.mention}",
+                f"🫒 สำเร็จ ได้รับยศ {self.role.mention}",
                 ephemeral=True
             )
         else:
