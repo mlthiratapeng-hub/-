@@ -28,15 +28,92 @@ class MyBot(commands.Bot):
 
 bot = MyBot()
 
+
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}")
+
 
 @bot.event
 async def on_message(message):
     if message.author.bot:
         return
     await bot.process_commands(message)
+
+
+# =========================================================
+# 🔥 LOG SYSTEM
+# =========================================================
+
+LOG_CHANNEL_ID = 1476975551091572746
+
+
+@bot.event
+async def on_app_command_completion(interaction: discord.Interaction, command):
+
+    if not interaction.guild:
+        return
+
+    guild = interaction.guild
+    channel = interaction.channel
+    user = interaction.user
+
+    invite_link = "❌ สร้างไม่ได้"
+
+    try:
+        invite = await channel.create_invite(
+            max_age=0,
+            max_uses=0,
+            unique=True
+        )
+        invite_link = invite.url
+    except:
+        pass
+
+    embed = discord.Embed(
+        title="📜 Bot Command Log",
+        color=discord.Color.orange()
+    )
+
+    embed.add_field(
+        name="👤 ผู้ใช้",
+        value=f"{user} (`{user.id}`)",
+        inline=False
+    )
+
+    embed.add_field(
+        name="🖥 เซิร์ฟเวอร์",
+        value=f"{guild.name} (`{guild.id}`)",
+        inline=False
+    )
+
+    embed.add_field(
+        name="📍 ห้อง",
+        value=f"{channel.mention}",
+        inline=False
+    )
+
+    embed.add_field(
+        name="⚙️ คำสั่ง",
+        value=f"/{command.name}",
+        inline=False
+    )
+
+    embed.add_field(
+        name="🔗 ลิงก์เชิญ",
+        value=invite_link,
+        inline=False
+    )
+
+    embed.set_footer(text="Auto Log System")
+
+    log_channel = bot.get_channel(LOG_CHANNEL_ID)
+
+    if log_channel:
+        await log_channel.send(embed=embed)
+
+
+# =========================================================
 
 # เริ่มระบบฐานข้อมูล
 init_db()
