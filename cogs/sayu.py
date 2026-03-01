@@ -12,7 +12,7 @@ captcha_cache = {}
 # ===== CAPTCHA =====
 
 def generate_text():
-    length = random.randint(5, 6)  # 🔥 5-6 ตัวเท่านั้น
+    length = random.randint(5, 6)
     chars = string.ascii_uppercase + string.digits
     return "".join(random.choice(chars) for _ in range(length))
 
@@ -28,25 +28,44 @@ def generate_image(text):
         font = ImageFont.load_default()
 
     spacing = width // (len(text) + 1)
+    char_centers = []
 
+    # ===== วาดตัวอักษร =====
     for i, char in enumerate(text):
         x = spacing * (i + 1)
-        y = random.randint(45, 65)
+        y = random.randint(50, 65)
 
-        # สร้าง layer โปร่งใสสำหรับตัวอักษร
-        char_layer = Image.new("RGBA", (120, 120), (255, 255, 255, 0))
+        char_layer = Image.new("RGBA", (140, 140), (255, 255, 255, 0))
         char_draw = ImageDraw.Draw(char_layer)
 
-        char_draw.text((35, 15), char, font=font, fill=(0, 0, 0))
+        char_draw.text((40, 25), char, font=font, fill=(0, 0, 0))
 
-        # 🔥 หมุนเบา ๆ กันแตก
         angle = random.randint(-15, 15)
-        rotated = char_layer.rotate(angle, resample=Image.BICUBIC)
+        rotated = char_layer.rotate(angle, resample=Image.BICUBIC, expand=True)
 
-        image.paste(rotated, (x - 60, y - 60), rotated)
+        image.paste(rotated, (x - 70, y - 70), rotated)
 
-    # ===== เส้นรบกวนพอประมาณ =====
-    for _ in range(8):
+        char_centers.append((x, y))
+
+    # ===== เส้นตัดตัวอักษร (ตัดแค่ 2 ตัว) =====
+    cut_indices = random.sample(range(len(char_centers)), 2)
+
+    for idx in cut_indices:
+        x, y = char_centers[idx]
+
+        draw.line(
+            (
+                x - 45,
+                y + random.randint(-10, 10),
+                x + 45,
+                y + random.randint(-10, 10),
+            ),
+            fill=(random.randint(60, 120), random.randint(60, 120), random.randint(60, 120)),
+            width=3,
+        )
+
+    # ===== เส้นรบกวนพื้นหลังเล็กน้อย =====
+    for _ in range(6):
         draw.line(
             (
                 random.randint(0, width),
@@ -54,15 +73,15 @@ def generate_image(text):
                 random.randint(0, width),
                 random.randint(0, height),
             ),
-            fill=(random.randint(100, 150), random.randint(100, 150), random.randint(100, 150)),
+            fill=(random.randint(120, 170), random.randint(120, 170), random.randint(120, 170)),
             width=2,
         )
 
     # ===== Noise เบา ๆ =====
-    for _ in range(250):
+    for _ in range(200):
         draw.point(
             (random.randint(0, width), random.randint(0, height)),
-            fill=(random.randint(150, 200), random.randint(150, 200), random.randint(150, 200)),
+            fill=(random.randint(160, 210), random.randint(160, 210), random.randint(160, 210)),
         )
 
     buffer = io.BytesIO()
@@ -89,7 +108,7 @@ class CaptchaModal(Modal):
 
         if user_id not in captcha_cache:
             await interaction.response.send_message(
-                "🍒 คุณยังไม่ได้กดสุ่มรหัส",
+                "🍓 คุณยังไม่ได้กดสุ่มรหัส",
                 ephemeral=True
             )
             return
@@ -101,12 +120,12 @@ class CaptchaModal(Modal):
             del captcha_cache[user_id]
 
             await interaction.response.send_message(
-                f"🍃 สำเร็จ ได้รับยศ {self.role.mention}",
+                f"🍇 สำเร็จ ได้รับยศ {self.role.mention}",
                 ephemeral=True
             )
         else:
             await interaction.response.send_message(
-                "💢 รหัสไม่ถูกต้อง กดสุ่มใหม่อีกครั้ง",
+                "🥩 รหัสไม่ถูกต้อง กดสุ่มใหม่อีกครั้ง",
                 ephemeral=True
             )
 
@@ -118,7 +137,7 @@ class VerifyView(View):
         super().__init__(timeout=None)
         self.role = role
 
-    @discord.ui.button(label="สุ่มรหัส", style=discord.ButtonStyle.blurple, emoji="🍲")
+    @discord.ui.button(label="สุ่มรหัส", style=discord.ButtonStyle.blurple)
     async def generate(self, interaction: discord.Interaction, button: Button):
 
         await interaction.response.defer(ephemeral=True)
@@ -131,7 +150,7 @@ class VerifyView(View):
 
         embed = discord.Embed(
             title="🔐 System | Verify",
-            description="ใส่ตัวเลขและตัวอักษรให้ถูกเพื่อรับยศ",
+            description="กดปุ่มด้านล่างเพื่อกรอกรหัสให้ถูกต้อง",
             color=discord.Color.red(),
         )
         embed.set_image(url="attachment://captcha.png")
@@ -142,7 +161,7 @@ class VerifyView(View):
             ephemeral=True,
         )
 
-    @discord.ui.button(label="กรอกรหัส", style=discord.ButtonStyle.green, emoji="📁")
+    @discord.ui.button(label="กรอกรหัส", style=discord.ButtonStyle.green)
     async def input_code(self, interaction: discord.Interaction, button: Button):
         await interaction.response.send_modal(CaptchaModal(self.role))
 
@@ -167,7 +186,7 @@ class Sayu(commands.Cog):
             description=(
                 "• กด 'สุ่มรหัส' เพื่อรับภาพ\n"
                 "• กด 'กรอกรหัส' เพื่อพิมพ์คำตอบ\n"
-                "• ใส่ตัวเลขให้ถูกต้องเพื่อรับยศ"
+                "• ใส่ให้ถูกต้องเพื่อรับยศ"
             ),
             color=discord.Color.green(),
         )
@@ -175,7 +194,7 @@ class Sayu(commands.Cog):
         await channel.send(embed=embed, view=VerifyView(role))
 
         await interaction.response.send_message(
-            "🍇 สร้างระบบเรียบร้อยแล้ว",
+            "🍃 สร้างระบบเรียบร้อยแล้ว",
             ephemeral=True
         )
 
