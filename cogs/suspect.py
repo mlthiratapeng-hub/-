@@ -191,7 +191,7 @@ class ReportForDuty(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="confirm", description="ระบบยืนยันตัวตนพร้อมเลือกยศ")
+    @app_commands.command(name="confirm", description="ระบบยืนยันตัวตนด้วยภาพ")
     async def confirm(self, interaction: discord.Interaction):
 
         embed = discord.Embed(
