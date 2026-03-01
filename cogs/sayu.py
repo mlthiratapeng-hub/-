@@ -50,34 +50,32 @@ def generate_image(text):
         char_boxes.append(bbox)
 
     # ===================================================
-    # 🔥 เส้นกินเนื้อตัวอักษรจริง 3-5 เส้น
+    # 🔥 เส้นกินประมาณ 1/3 ของตัวอักษร (2-3 ตัว)
     # ===================================================
 
-    heavy_lines = random.randint(3, 5)
-    chosen_boxes = random.sample(char_boxes, min(heavy_lines, len(char_boxes)))
+    chosen_boxes = random.sample(char_boxes, min(random.randint(2, 3), len(char_boxes)))
 
     for box in chosen_boxes:
         x1, y1, x2, y2 = box
+        height_box = y2 - y1
 
-        start_x = random.randint(x1 - 10, x1 + 10)
-        end_x = random.randint(x2 - 10, x2 + 10)
-
-        start_y = random.randint(y1, y2)
-        end_y = random.randint(y1, y2)
+        # เลือกช่วงล่างประมาณ 25-40%
+        start_y = y2 - int(height_box * random.uniform(0.35, 0.45))
+        end_y = start_y + random.randint(3, 8)
 
         draw.line(
-            (start_x, start_y, end_x, end_y),
-            fill=(random.randint(40, 90),
-                  random.randint(40, 90),
-                  random.randint(40, 90)),
-            width=random.randint(8, 14),
+            (x1 - 5, start_y, x2 + 5, end_y),
+            fill=(random.randint(60, 100),
+                  random.randint(60, 100),
+                  random.randint(60, 100)),
+            width=random.randint(4, 8),
         )
 
     # ===================================================
-    # 🔥 เส้นมั่วทั่วภาพ 8-15 เส้น
+    # 🔥 เส้นมั่วทั่วภาพ (5-8 เส้น)
     # ===================================================
 
-    for _ in range(random.randint(8, 15)):
+    for _ in range(random.randint(5, 8)):
         draw.line(
             (
                 random.randint(0, width),
@@ -85,24 +83,24 @@ def generate_image(text):
                 random.randint(0, width),
                 random.randint(0, height),
             ),
-            fill=(random.randint(60, 160),
-                  random.randint(60, 160),
-                  random.randint(60, 160)),
-            width=random.randint(3, 8),
+            fill=(random.randint(80, 160),
+                  random.randint(80, 160),
+                  random.randint(80, 160)),
+            width=random.randint(2, 5),
         )
 
     # ===================================================
-    # Noise หนักขึ้น
+    # Noise กลาง ๆ
     # ===================================================
 
-    for _ in range(600):
+    for _ in range(400):
         draw.point(
             (random.randint(0, width - 1),
              random.randint(0, height - 1)),
             fill=(
-                random.randint(150, 220),
-                random.randint(150, 220),
-                random.randint(150, 220),
+                random.randint(170, 220),
+                random.randint(170, 220),
+                random.randint(170, 220),
             ),
         )
 
