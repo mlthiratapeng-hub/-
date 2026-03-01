@@ -152,7 +152,7 @@ class Sayu(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="no_bots_allowed", description="สร้างระบบกันบอท")
+    @app_commands.command(name="safety", description="สร้างระบบกันบอท")
     @app_commands.checks.has_permissions(administrator=True)
     async def nobots(
         self,
