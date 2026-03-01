@@ -181,7 +181,7 @@ class LinkScan(commands.Cog):
     async def auto_update(self):
         await update_blacklist()
 
-    @app_commands.command(name="examine", description="Advanced AI Threat Scan")
+    @app_commands.command(name="examine", description="เช็คลิ้งมาตรฐานgoogle")
     async def examine(self, interaction: discord.Interaction, url: str):
 
         if interaction.guild_id != ALLOWED_GUILD_ID:
