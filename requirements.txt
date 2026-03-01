@@ -4,3 +4,4 @@ python-whois
 idna
 dnspython
 pillow
+openai
