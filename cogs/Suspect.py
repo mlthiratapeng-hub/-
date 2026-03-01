@@ -184,7 +184,7 @@ class ReportForDuty(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="Advanced protection", description="ระบบยืนยันตัวตน slfe-bot")
+    @app_commands.command(name="Advancedprotection", description="ระบบยืนยันตัวตน slfe-bot")
     async def reportforduty(self, interaction: discord.Interaction):
 
         embed = discord.Embed(
