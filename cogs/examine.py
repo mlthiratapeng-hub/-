@@ -67,6 +67,44 @@ async def expand_and_trace(url):
 
     return final_url, redirect_chain
 
+# ================= SSL CHECK (NO API) =================
+
+def check_ssl(domain):
+    try:
+        context = ssl.create_default_context()
+        with socket.create_connection((domain, 443), timeout=5) as sock:
+            with context.wrap_socket(sock, server_hostname=domain) as ssock:
+                cert = ssock.getpeercert()
+                expire_date = datetime.strptime(cert['notAfter'], "%b %d %H:%M:%S %Y %Z")
+                if expire_date < datetime.utcnow():
+                    return False, "ใบรับรอง SSL หมดอายุ"
+        return True, None
+    except Exception:
+        return False, "SSL ผิดปกติหรือไม่มี"
+
+# ================= DNS CHECK (NO API) =================
+
+def dns_scan(domain):
+    issues = []
+    try:
+        answers = dns.resolver.resolve(domain, 'A')
+    except:
+        issues.append("ไม่มี A record")
+
+    try:
+        dns.resolver.resolve(domain, 'MX')
+    except:
+        issues.append("ไม่มี MX record")
+
+    return issues
+
+# ================= DOMAIN ENTROPY =================
+
+def calculate_entropy(domain):
+    prob = [float(domain.count(c)) / len(domain) for c in dict.fromkeys(list(domain))]
+    entropy = - sum([p * math.log(p) / math.log(2.0) for p in prob])
+    return entropy
+
 # ================= VIRUSTOTAL =================
 
 async def check_virustotal(url):
@@ -107,10 +145,7 @@ async def check_google_safe(url):
         return False
 
     payload = {
-        "client": {
-            "clientId": "discord-bot",
-            "clientVersion": "1.0"
-        },
+        "client": {"clientId": "discord-bot", "clientVersion": "1.0"},
         "threatInfo": {
             "threatTypes": ["MALWARE", "SOCIAL_ENGINEERING"],
             "platformTypes": ["ANY_PLATFORM"],
@@ -182,38 +217,43 @@ class LinkScan(commands.Cog):
             if len(chain) >= 3:
                 score -= 15
 
-        if final_url != url:
-            final_domain = urlparse(final_url).netloc.lower()
-            if final_domain != domain:
-                score -= 10
-                findings.append("⚠️ Redirect ไปอีกโดเมน")
-
         # ---------- BLACKLIST ----------
         if url in blacklist_cache:
             score -= 50
             findings.append("🚨 พบใน URLHaus Blacklist")
 
+        # ---------- SSL ----------
+        ssl_ok, ssl_issue = check_ssl(domain)
+        if not ssl_ok:
+            score -= 10
+            findings.append(f"📁 {ssl_issue}")
+
+        # ---------- DNS ----------
+        dns_issues = dns_scan(domain)
+        if dns_issues:
+            score -= 10
+            findings.extend([f"🌐 {i}" for i in dns_issues])
+
+        # ---------- ENTROPY ----------
+        entropy = calculate_entropy(domain.replace(".", ""))
+        if entropy > 4.0:
+            score -= 10
+            findings.append("🧠 โดเมนสุ่มสูงผิดปกติ")
+
         # ---------- VIRUSTOTAL ----------
-        try:
-            mal, sus = await check_virustotal(url)
-            if mal > 0:
-                score -= mal * 15
-                findings.append(f"🚨 VirusTotal malicious {mal}")
-            elif sus > 0:
-                score -= sus * 8
-                findings.append(f"⚠️ VirusTotal suspicious {sus}")
-        except Exception as e:
-            print(f"[VT CALL ERROR] {e}")
+        mal, sus = await check_virustotal(url)
+        if mal > 0:
+            score -= mal * 15
+            findings.append(f"🚨 VirusTotal malicious {mal}")
+        elif sus > 0:
+            score -= sus * 8
+            findings.append(f"⚠️ VirusTotal suspicious {sus}")
 
         # ---------- GOOGLE SAFE ----------
-        try:
-            if await check_google_safe(url):
-                score -= 40
-                findings.append("🚨 Google Safe Browsing ระบุว่าอันตราย")
-        except Exception as e:
-            print(f"[GSB CALL ERROR] {e}")
+        if await check_google_safe(url):
+            score -= 40
+            findings.append("🚨 Google Safe Browsing ระบุว่าอันตราย")
 
-        # ---------- FINAL ----------
         if score < 0:
             score = 0
 
