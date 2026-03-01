@@ -7,7 +7,6 @@ import random
 import string
 import io
 
-# เก็บ captcha ชั่วคราว {user_id: code}
 captcha_cache = {}
 
 
@@ -20,34 +19,36 @@ def generate_text():
 
 
 def generate_image(text):
-    width, height = 400, 160
+    width, height = 420, 170
     image = Image.new("RGB", (width, height), (255, 255, 255))
     draw = ImageDraw.Draw(image)
 
     try:
-        font = ImageFont.truetype("arial.ttf", 70)
+        font = ImageFont.truetype("arial.ttf", 75)
     except:
         font = ImageFont.load_default()
 
     spacing = width // (len(text) + 1)
     char_positions = []
 
-    # ===== วาดตัวอักษร =====
     for i, char in enumerate(text):
-        x = spacing * (i + 1) - 25
-        y = random.randint(35, 55)
+        x = spacing * (i + 1)
+        y = random.randint(40, 60)
+
+        # สร้างภาพตัวอักษรแยกชิ้น
+        char_img = Image.new("RGBA", (120, 120), (255, 255, 255, 0))
+        char_draw = ImageDraw.Draw(char_img)
+        char_draw.text((20, 10), char, font=font, fill=(0, 0, 0))
+
+        # หมุนตัวอักษร (-25 ถึง 25 องศา)
+        rotated = char_img.rotate(random.randint(-25, 25), expand=1)
+
+        image.paste(rotated, (x - 50, y - 40), rotated)
 
         char_positions.append((x, y))
 
-        draw.text(
-            (x, y),
-            char,
-            font=font,
-            fill=(0, 0, 0)
-        )
-
-    # ===== เส้นสุ่มทั่วภาพ (เพิ่มเยอะ) =====
-    for _ in range(12):
+    # ===== เส้นสุ่มทั่วภาพ =====
+    for _ in range(15):
         draw.line(
             (
                 random.randint(0, width),
@@ -63,14 +64,14 @@ def generate_image(text):
             width=random.randint(1, 3),
         )
 
-    # ===== เส้นพาดตัดตัวอักษรแต่ละตัว =====
+    # ===== เส้นพาดตัดตัวอักษร =====
     for (x, y) in char_positions:
         draw.line(
             (
-                x - 15,
-                y + random.randint(10, 40),
-                x + 70,
-                y + random.randint(10, 40),
+                x - 40,
+                y + random.randint(0, 30),
+                x + 40,
+                y + random.randint(0, 30),
             ),
             fill=(
                 random.randint(50, 120),
@@ -80,8 +81,8 @@ def generate_image(text):
             width=3,
         )
 
-    # ===== เส้นโค้งมั่ว ๆ =====
-    for _ in range(6):
+    # ===== เส้นโค้ง =====
+    for _ in range(8):
         draw.arc(
             (
                 random.randint(0, width - 100),
@@ -99,8 +100,8 @@ def generate_image(text):
             width=2,
         )
 
-    # ===== Noise หนาแน่น =====
-    for _ in range(400):
+    # ===== Noise =====
+    for _ in range(500):
         draw.point(
             (random.randint(0, width), random.randint(0, height)),
             fill=(
@@ -130,7 +131,6 @@ class CaptchaModal(Modal):
         self.add_item(self.answer)
 
     async def on_submit(self, interaction: discord.Interaction):
-
         user_id = interaction.user.id
 
         if user_id not in captcha_cache:
@@ -164,9 +164,10 @@ class VerifyView(View):
         super().__init__(timeout=None)
         self.role = role
 
-    # ปุ่มที่ 1: สุ่มรหัส
     @discord.ui.button(label="สุ่มรหัส", style=discord.ButtonStyle.blurple, emoji="🍲")
     async def generate(self, interaction: discord.Interaction, button: Button):
+
+        await interaction.response.defer(ephemeral=True)  # 🔥 กัน interaction ล้มเหลว
 
         text = generate_text()
         captcha_cache[interaction.user.id] = text
@@ -181,19 +182,15 @@ class VerifyView(View):
         )
         embed.set_image(url="attachment://captcha.png")
 
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=embed,
             file=file,
             ephemeral=True,
         )
 
-    # ปุ่มที่ 2: กรอกรหัส
     @discord.ui.button(label="กรอกรหัส", style=discord.ButtonStyle.green, emoji="📁")
     async def input_code(self, interaction: discord.Interaction, button: Button):
-
-        await interaction.response.send_modal(
-            CaptchaModal(self.role)
-        )
+        await interaction.response.send_modal(CaptchaModal(self.role))
 
 
 # ===== COG =====
