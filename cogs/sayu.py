@@ -120,7 +120,7 @@ class VerifyView(View):
         super().__init__(timeout=None)
         self.role = role
 
-    @discord.ui.button(label="Verify", style=discord.ButtonStyle.green, emoji="🍇")
+    @discord.ui.button(label="check", style=discord.ButtonStyle.green, emoji="🍇")
     async def verify(self, interaction: discord.Interaction, button: Button):
 
         text = generate_text()
