@@ -30,7 +30,8 @@ blacklist_cache = set()
 async def update_blacklist():
     global blacklist_cache
     try:
-        async with aiohttp.ClientSession() as session:
+        timeout = aiohttp.ClientTimeout(total=15)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.get("https://urlhaus.abuse.ch/downloads/text/") as resp:
                 text = await resp.text()
                 blacklist_cache = set(
@@ -38,8 +39,33 @@ async def update_blacklist():
                     for line in text.splitlines()
                     if line and not line.startswith("#")
                 )
-    except:
-        pass
+    except Exception as e:
+        print(f"[BLACKLIST ERROR] {e}")
+
+# ================= REDIRECT + SHORTENER =================
+
+SHORTENERS = [
+    "bit.ly", "tinyurl.com", "t.co",
+    "rebrand.ly", "cutt.ly", "goo.gl",
+    "is.gd", "buff.ly"
+]
+
+async def expand_and_trace(url):
+    redirect_chain = []
+    final_url = url
+
+    timeout = aiohttp.ClientTimeout(total=15)
+
+    try:
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(url, allow_redirects=True) as resp:
+                for r in resp.history:
+                    redirect_chain.append(str(r.url))
+                final_url = str(resp.url)
+    except Exception as e:
+        print(f"[REDIRECT ERROR] {e}")
+
+    return final_url, redirect_chain
 
 # ================= VIRUSTOTAL =================
 
@@ -48,27 +74,33 @@ async def check_virustotal(url):
         return 0, 0
 
     headers = {"x-apikey": VT_API}
+    timeout = aiohttp.ClientTimeout(total=20)
 
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            "https://www.virustotal.com/api/v3/urls",
-            headers=headers,
-            data={"url": url}
-        ) as resp:
-            data = await resp.json()
+    try:
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.post(
+                "https://www.virustotal.com/api/v3/urls",
+                headers=headers,
+                data={"url": url}
+            ) as resp:
+                data = await resp.json()
 
-        url_id = data["data"]["id"]
+            url_id = data["data"]["id"]
 
-        async with session.get(
-            f"https://www.virustotal.com/api/v3/analyses/{url_id}",
-            headers=headers
-        ) as resp:
-            result = await resp.json()
+            async with session.get(
+                f"https://www.virustotal.com/api/v3/analyses/{url_id}",
+                headers=headers
+            ) as resp:
+                result = await resp.json()
 
-    stats = result["data"]["attributes"]["stats"]
-    return stats.get("malicious", 0), stats.get("suspicious", 0)
+        stats = result["data"]["attributes"]["stats"]
+        return stats.get("malicious", 0), stats.get("suspicious", 0)
 
-# ================= GOOGLE SAFE BROWSING =================
+    except Exception as e:
+        print(f"[VT ERROR] {e}")
+        return 0, 0
+
+# ================= GOOGLE SAFE =================
 
 async def check_google_safe(url):
     if not GSB_API:
@@ -87,42 +119,21 @@ async def check_google_safe(url):
         }
     }
 
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            f"https://safebrowsing.googleapis.com/v4/threatMatches:find?key={GSB_API}",
-            json=payload
-        ) as resp:
-            result = await resp.json()
+    timeout = aiohttp.ClientTimeout(total=15)
 
-    return "matches" in result
-
-# ================= ENTROPY =================
-
-def calculate_entropy(string):
-    prob = [float(string.count(c)) / len(string) for c in dict.fromkeys(list(string))]
-    entropy = -sum([p * math.log(p) / math.log(2.0) for p in prob])
-    return entropy
-
-# ================= DNS =================
-
-def check_dns_records(domain):
-    results = {"mx": [], "ns": [], "txt": []}
     try:
-        answers = dns.resolver.resolve(domain, 'MX')
-        results["mx"] = [r.exchange.to_text() for r in answers]
-    except:
-        pass
-    try:
-        answers = dns.resolver.resolve(domain, 'NS')
-        results["ns"] = [r.to_text() for r in answers]
-    except:
-        pass
-    try:
-        answers = dns.resolver.resolve(domain, 'TXT')
-        results["txt"] = [r.to_text() for r in answers]
-    except:
-        pass
-    return results
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.post(
+                f"https://safebrowsing.googleapis.com/v4/threatMatches:find?key={GSB_API}",
+                json=payload
+            ) as resp:
+                result = await resp.json()
+
+        return "matches" in result
+
+    except Exception as e:
+        print(f"[GSB ERROR] {e}")
+        return False
 
 # ================= BOT CLASS =================
 
@@ -149,6 +160,7 @@ class LinkScan(commands.Cog):
         await interaction.response.defer()
 
         parsed = urlparse(url)
+
         if parsed.scheme not in ["http", "https"]:
             await interaction.followup.send("URL ต้องขึ้นต้นด้วย http หรือ https")
             return
@@ -157,12 +169,31 @@ class LinkScan(commands.Cog):
         score = 100
         findings = []
 
-        # ============ BLACKLIST ============
+        # ---------- SHORTENER ----------
+        if any(short in domain for short in SHORTENERS):
+            score -= 10
+            findings.append("🔗 ใช้ URL Shortener")
+
+        # ---------- REDIRECT ----------
+        final_url, chain = await expand_and_trace(url)
+
+        if len(chain) > 0:
+            findings.append(f"↪ มี redirect {len(chain)} ชั้น")
+            if len(chain) >= 3:
+                score -= 15
+
+        if final_url != url:
+            final_domain = urlparse(final_url).netloc.lower()
+            if final_domain != domain:
+                score -= 10
+                findings.append("⚠️ Redirect ไปอีกโดเมน")
+
+        # ---------- BLACKLIST ----------
         if url in blacklist_cache:
             score -= 50
             findings.append("🚨 พบใน URLHaus Blacklist")
 
-        # ============ VIRUSTOTAL ============
+        # ---------- VIRUSTOTAL ----------
         try:
             mal, sus = await check_virustotal(url)
             if mal > 0:
@@ -170,19 +201,22 @@ class LinkScan(commands.Cog):
                 findings.append(f"🚨 VirusTotal malicious {mal}")
             elif sus > 0:
                 score -= sus * 8
-                findings.append(f"⚠ VirusTotal suspicious {sus}")
-        except:
-            pass
+                findings.append(f"⚠️ VirusTotal suspicious {sus}")
+        except Exception as e:
+            print(f"[VT CALL ERROR] {e}")
 
-        # ============ GOOGLE SAFE ============
+        # ---------- GOOGLE SAFE ----------
         try:
             if await check_google_safe(url):
                 score -= 40
                 findings.append("🚨 Google Safe Browsing ระบุว่าอันตราย")
-        except:
-            pass
+        except Exception as e:
+            print(f"[GSB CALL ERROR] {e}")
 
-        # ============ FINAL LEVEL ============
+        # ---------- FINAL ----------
+        if score < 0:
+            score = 0
+
         if score >= 80:
             level = "🍇 ปลอดภัยสูง"
             color = discord.Color.green()
@@ -190,7 +224,7 @@ class LinkScan(commands.Cog):
             level = "🍋 ปานกลาง"
             color = discord.Color.orange()
         else:
-            level = "🌶️ อันตรายสูง"
+            level = "🌶 อันตรายสูง"
             color = discord.Color.red()
 
         embed = discord.Embed(
