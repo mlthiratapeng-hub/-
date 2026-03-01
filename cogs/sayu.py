@@ -19,92 +19,93 @@ def generate_text():
 
 def generate_image(text):
     width, height = 420, 170
-    image = Image.new("RGB", (width, height), (255, 255, 255))
-    draw = ImageDraw.Draw(image)
+
+    # Layer แยก
+    base = Image.new("RGB", (width, height), (255, 255, 255))
+    text_layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    line_layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+
+    draw_text = ImageDraw.Draw(text_layer)
+    draw_line = ImageDraw.Draw(line_layer)
 
     try:
-        font = ImageFont.truetype("arial.ttf", 70)
+        font = ImageFont.truetype("arial.ttf", 75)
     except:
         font = ImageFont.load_default()
 
     spacing = width // (len(text) + 1)
     char_boxes = []
 
-    # ===== วาดตัวอักษร =====
+    # ===== ตัวอักษร (ชัดมาก) =====
     for i, char in enumerate(text):
         x = spacing * (i + 1)
-        y = random.randint(55, 65)
+        y = random.randint(60, 80)
 
-        char_layer = Image.new("RGBA", (140, 140), (255, 255, 255, 0))
-        char_draw = ImageDraw.Draw(char_layer)
+        # stroke ทำให้ชัด
+        draw_text.text(
+            (x, y),
+            char,
+            font=font,
+            fill=(0, 0, 0),
+            anchor="mm",
+            stroke_width=3,
+            stroke_fill=(255, 255, 255),
+        )
 
-        char_draw.text((40, 25), char, font=font, fill=(0, 0, 0))
+        bbox = draw_text.textbbox((x, y), char, font=font, anchor="mm")
+        char_boxes.append(bbox)
 
-        angle = random.randint(-12, 12)
-        rotated = char_layer.rotate(angle, resample=Image.BICUBIC, expand=True)
+    # ===== เส้นตัดจริงอย่างน้อย 2 ตัว =====
+    chosen = random.sample(char_boxes, min(2, len(char_boxes)))
 
-        paste_x = x - rotated.width // 2
-        paste_y = y - rotated.height // 2
-
-        image.paste(rotated, (paste_x, paste_y), rotated)
-
-        # เก็บกรอบคร่าว ๆ ของตัวอักษร
-        char_boxes.append((
-            paste_x,
-            paste_y,
-            paste_x + rotated.width,
-            paste_y + rotated.height
-        ))
-
-    # ===================================================
-    # 🔥 เส้นตัดทับตัวอักษรจริง อย่างน้อย 2 เส้น
-    # ===================================================
-
-    chosen_boxes = random.sample(char_boxes, 2)
-
-    for box in chosen_boxes:
+    for box in chosen:
         x1, y1, x2, y2 = box
-
         center_y = (y1 + y2) // 2
 
-        # เส้นพาดทะลุตัวอักษรแนวนอน
-        draw.line(
-            (x1 - 20, center_y, x2 + 20, center_y + random.randint(-5, 5)),
-            fill=(random.randint(60,120), random.randint(60,120), random.randint(60,120)),
-            width=4
+        draw_line.line(
+            (x1 - 20, center_y,
+             x2 + 20, center_y + random.randint(-8, 8)),
+            fill=(random.randint(40, 100),
+                  random.randint(40, 100),
+                  random.randint(40, 100),
+                  180),
+            width=5
         )
 
-    # ===================================================
-    # 🔥 เพิ่มเส้นสุ่มอีก 1-3 เส้น (อาจจะตัดหลายตัว)
-    # ===================================================
-    extra_lines = random.randint(1, 3)
-
-    for _ in range(extra_lines):
-        start_x = random.randint(0, width // 3)
-        end_x = random.randint(width // 2, width)
-
-        start_y = random.randint(60, 100)
-        end_y = random.randint(60, 100)
-
-        draw.line(
-            (start_x, start_y, end_x, end_y),
-            fill=(random.randint(80,150), random.randint(80,150), random.randint(80,150)),
-            width=3
+    # ===== เส้นมั่วแบบรูป 2 =====
+    for _ in range(random.randint(4, 7)):
+        draw_line.line(
+            (
+                random.randint(0, width),
+                random.randint(0, height),
+                random.randint(0, width),
+                random.randint(0, height),
+            ),
+            fill=(random.randint(60, 150),
+                  random.randint(60, 150),
+                  random.randint(60, 150),
+                  160),
+            width=random.randint(3, 6),
         )
 
-    # ===================================================
-    # Noise เบา ๆ
-    # ===================================================
-    for _ in range(150):
-        draw.point(
-            (random.randint(0, width), random.randint(0, height)),
-            fill=(random.randint(170, 220),
-                  random.randint(170, 220),
-                  random.randint(170, 220)),
+    # ===== noise =====
+    for _ in range(250):
+        base.putpixel(
+            (random.randint(0, width - 1),
+             random.randint(0, height - 1)),
+            (
+                random.randint(180, 220),
+                random.randint(180, 220),
+                random.randint(180, 220),
+            ),
         )
+
+    # รวม layer
+    combined = Image.alpha_composite(base.convert("RGBA"), line_layer)
+    combined = Image.alpha_composite(combined, text_layer)
 
     buffer = io.BytesIO()
-    image.save(buffer, format="PNG")
+    combined.convert("RGB").save(buffer, format="PNG")
     buffer.seek(0)
     return buffer
 
