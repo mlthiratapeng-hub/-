@@ -1,6 +1,6 @@
 import discord
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 import aiohttp
 import os
 import socket
@@ -22,15 +22,88 @@ ALLOWED_CHANNEL_ID = 1476914330854490204
 
 VT_API = os.getenv("VT_API")
 GSB_API = os.getenv("GSB_API")
-ABUSE_API = os.getenv("ABUSE_API")
 
+# ================= BLACKLIST CACHE =================
 
-# ------------------ NEW LOCAL SECURITY FUNCTIONS ------------------
+blacklist_cache = set()
+
+async def update_blacklist():
+    global blacklist_cache
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get("https://urlhaus.abuse.ch/downloads/text/") as resp:
+                text = await resp.text()
+                blacklist_cache = set(
+                    line.strip()
+                    for line in text.splitlines()
+                    if line and not line.startswith("#")
+                )
+    except:
+        pass
+
+# ================= VIRUSTOTAL =================
+
+async def check_virustotal(url):
+    if not VT_API:
+        return 0, 0
+
+    headers = {"x-apikey": VT_API}
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(
+            "https://www.virustotal.com/api/v3/urls",
+            headers=headers,
+            data={"url": url}
+        ) as resp:
+            data = await resp.json()
+
+        url_id = data["data"]["id"]
+
+        async with session.get(
+            f"https://www.virustotal.com/api/v3/analyses/{url_id}",
+            headers=headers
+        ) as resp:
+            result = await resp.json()
+
+    stats = result["data"]["attributes"]["stats"]
+    return stats.get("malicious", 0), stats.get("suspicious", 0)
+
+# ================= GOOGLE SAFE BROWSING =================
+
+async def check_google_safe(url):
+    if not GSB_API:
+        return False
+
+    payload = {
+        "client": {
+            "clientId": "discord-bot",
+            "clientVersion": "1.0"
+        },
+        "threatInfo": {
+            "threatTypes": ["MALWARE", "SOCIAL_ENGINEERING"],
+            "platformTypes": ["ANY_PLATFORM"],
+            "threatEntryTypes": ["URL"],
+            "threatEntries": [{"url": url}]
+        }
+    }
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(
+            f"https://safebrowsing.googleapis.com/v4/threatMatches:find?key={GSB_API}",
+            json=payload
+        ) as resp:
+            result = await resp.json()
+
+    return "matches" in result
+
+# ================= ENTROPY =================
 
 def calculate_entropy(string):
     prob = [float(string.count(c)) / len(string) for c in dict.fromkeys(list(string))]
-    entropy = - sum([p * math.log(p) / math.log(2.0) for p in prob])
+    entropy = -sum([p * math.log(p) / math.log(2.0) for p in prob])
     return entropy
+
+# ================= DNS =================
 
 def check_dns_records(domain):
     results = {"mx": [], "ns": [], "txt": []}
@@ -39,41 +112,28 @@ def check_dns_records(domain):
         results["mx"] = [r.exchange.to_text() for r in answers]
     except:
         pass
-
     try:
         answers = dns.resolver.resolve(domain, 'NS')
         results["ns"] = [r.to_text() for r in answers]
     except:
         pass
-
     try:
         answers = dns.resolver.resolve(domain, 'TXT')
         results["txt"] = [r.to_text() for r in answers]
     except:
         pass
-
     return results
 
-def check_suspicious_tld(domain):
-    risky = [".tk", ".ml", ".ga", ".cf", ".gq", ".xyz", ".top"]
-    return any(domain.endswith(tld) for tld in risky)
-
-def check_subdomain_abuse(domain):
-    return len(domain.split(".")) > 3
-
-def check_suspicious_keywords(url):
-    keywords = ["login", "verify", "account", "bank", "secure", "update", "password"]
-    return any(word in url.lower() for word in keywords)
-
-def check_url_length(url):
-    return len(url) > 120
-
-
-# ------------------------------------------------------------------
+# ================= BOT CLASS =================
 
 class LinkScan(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.auto_update.start()
+
+    @tasks.loop(hours=1)
+    async def auto_update(self):
+        await update_blacklist()
 
     @app_commands.command(name="examine", description="Advanced AI Threat Scan")
     async def examine(self, interaction: discord.Interaction, url: str):
@@ -97,90 +157,34 @@ class LinkScan(commands.Cog):
         score = 100
         findings = []
 
-        # ---------------- HOMOGRAPH ----------------
+        # ============ BLACKLIST ============
+        if url in blacklist_cache:
+            score -= 50
+            findings.append("🚨 พบใน URLHaus Blacklist")
+
+        # ============ VIRUSTOTAL ============
         try:
-            idna.encode(domain).decode("ascii")
-        except:
-            score -= 25
-            findings.append("📁 Unicode domain (Homograph Risk)")
-
-        # ---------------- DNS ANALYSIS (NEW) ----------------
-        dns_data = check_dns_records(domain)
-
-        if not dns_data["mx"]:
-            score -= 10
-            findings.append("📁 ไม่มี MX Record")
-
-        if not dns_data["txt"]:
-            score -= 5
-            findings.append("📁 ไม่มี SPF/TXT Record")
-
-        # ---------------- TLD CHECK (NEW) ----------------
-        if check_suspicious_tld(domain):
-            score -= 15
-            findings.append("📁 ใช้ TLD เสี่ยง")
-
-        # ---------------- SUBDOMAIN ABUSE (NEW) ----------------
-        if check_subdomain_abuse(domain):
-            score -= 10
-            findings.append("📁 Subdomain ซ้อนหลายชั้น")
-
-        # ---------------- ENTROPY CHECK (NEW) ----------------
-        entropy = calculate_entropy(domain.replace(".", ""))
-        if entropy > 4:
-            score -= 15
-            findings.append("📁 Domain entropy สูง (ชื่อมั่ว)")
-
-        # ---------------- KEYWORD CHECK (NEW) ----------------
-        if check_suspicious_keywords(url):
-            score -= 10
-            findings.append("📁 พบคำเสี่ยงใน URL")
-
-        # ---------------- URL LENGTH (NEW) ----------------
-        if check_url_length(url):
-            score -= 10
-            findings.append("📁 URL ยาวผิดปกติ")
-
-        # ---------------- WHOIS AGE ----------------
-        try:
-            loop = asyncio.get_running_loop()
-            w = await loop.run_in_executor(None, whois.whois, domain)
-            creation = w.creation_date
-
-            if isinstance(creation, list):
-                creation = creation[0]
-
-            if creation:
-                age_days = (datetime.now(timezone.utc) - creation.replace(tzinfo=timezone.utc)).days
-                if age_days < 7:
-                    score -= 30
-                    findings.append("🚨 โดเมนอายุน้อยกว่า 7 วัน")
-                elif age_days < 30:
-                    score -= 15
-                    findings.append("💢 โดเมนอายุน้อยกว่า 30 วัน")
+            mal, sus = await check_virustotal(url)
+            if mal > 0:
+                score -= mal * 15
+                findings.append(f"🚨 VirusTotal malicious {mal}")
+            elif sus > 0:
+                score -= sus * 8
+                findings.append(f"⚠ VirusTotal suspicious {sus}")
         except:
             pass
 
-        # ---------------- SSL CHECK ----------------
-        if parsed.scheme == "https":
-            try:
-                ctx = ssl.create_default_context()
-                with socket.create_connection((domain, 443), timeout=5) as sock:
-                    with ctx.wrap_socket(sock, server_hostname=domain) as ssock:
-                        cert = ssock.getpeercert()
-                        if not cert:
-                            score -= 20
-                            findings.append("🚨 SSL ผิดปกติ")
-            except:
-                score -= 20
-                findings.append("🚨 SSL ตรวจสอบไม่ผ่าน")
-        else:
-            score -= 25
-            findings.append("🚨 ไม่มี HTTPS")
+        # ============ GOOGLE SAFE ============
+        try:
+            if await check_google_safe(url):
+                score -= 40
+                findings.append("🚨 Google Safe Browsing ระบุว่าอันตราย")
+        except:
+            pass
 
-        # ---------------- FINAL SCORE ----------------
+        # ============ FINAL LEVEL ============
         if score >= 80:
-            level = "🍐 ปลอดภัยสูง"
+            level = "🍇 ปลอดภัยสูง"
             color = discord.Color.green()
         elif score >= 50:
             level = "🍋 ปานกลาง"
@@ -190,7 +194,7 @@ class LinkScan(commands.Cog):
             color = discord.Color.red()
 
         embed = discord.Embed(
-            title="📁 Advanced AI Threat Intelligence Report",
+            title="Advanced AI Threat Intelligence Report",
             color=color,
             timestamp=datetime.now()
         )
