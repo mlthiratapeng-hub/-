@@ -5,3 +5,4 @@ idna
 dnspython
 pillow
 openai
+python-dotenv
