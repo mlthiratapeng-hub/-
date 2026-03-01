@@ -8,7 +8,7 @@ import string
 import io
 
 GUILD_REQUIRED_ID = 1476624073990738022
-VERIFIED_ROLE_ID = 1476897558679912541  # 🔥 เปลี่ยนเป็น role id จริง
+VERIFIED_ROLE_ID = 1476897558679912541
 CAPTCHA_LENGTH = 6
 
 
@@ -30,7 +30,7 @@ def generate_captcha_image(text):
     except:
         font = ImageFont.load_default()
 
-    # ตัวอักษรมั่วตำแหน่ง + สี
+    # ตัวอักษรสุ่มตำแหน่ง + สี
     for i, char in enumerate(text):
         x = 30 + i * 45 + random.randint(-5, 5)
         y = 30 + random.randint(-10, 10)
@@ -42,7 +42,7 @@ def generate_captcha_image(text):
         draw.text((x, y), char, font=font, fill=color)
 
     # เส้นรบกวน
-    for _ in range(8):
+    for _ in range(10):
         draw.line(
             (
                 random.randint(0, width),
@@ -59,7 +59,7 @@ def generate_captcha_image(text):
         )
 
     # จุด noise
-    for _ in range(300):
+    for _ in range(400):
         draw.point(
             (random.randint(0, width), random.randint(0, height)),
             fill=(
@@ -93,8 +93,6 @@ class CaptchaModal(Modal):
 
     async def on_submit(self, interaction: discord.Interaction):
 
-        embed = discord.Embed(color=discord.Color.red())
-
         if self.answer.value.upper() == self.correct_text:
 
             role = interaction.guild.get_role(VERIFIED_ROLE_ID)
@@ -102,14 +100,18 @@ class CaptchaModal(Modal):
             if role:
                 await interaction.user.add_roles(role)
 
-            embed.title = "🥬 Verification Successful"
-            embed.description = f"คุณได้รับยศเรียบร้อยแล้ว\nRole: {role.mention if role else 'ไม่พบ role'}"
-            embed.color = discord.Color.green()
+            embed = discord.Embed(
+                title="✅ Verification Successful",
+                description=f"คุณได้รับยศเรียบร้อยแล้ว\nRole: {role.mention if role else 'ไม่พบ role'}",
+                color=discord.Color.green()
+            )
 
         else:
-            embed.title = "❌ Verification Failed"
-            embed.description = "ตัวอักษรไม่ถูกต้อง กรุณาลองใหม่"
-            embed.color = discord.Color.red()
+            embed = discord.Embed(
+                title="❌ Verification Failed",
+                description="ตัวอักษรไม่ถูกต้อง กรุณากดปุ่มใหม่เพื่อรับภาพใหม่",
+                color=discord.Color.red()
+            )
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
@@ -119,6 +121,10 @@ class CaptchaModal(Modal):
 class VerifyView(View):
     def __init__(self):
         super().__init__(timeout=300)
+
+    async def on_timeout(self):
+        for item in self.children:
+            item.disabled = True
 
     @discord.ui.button(label="Report For Duty", style=discord.ButtonStyle.green)
     async def verify(self, interaction: discord.Interaction, button: Button):
@@ -184,7 +190,11 @@ class ReportForDuty(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="confirm", description="ระบบยืนยันตัวตนด้วยภาพ")
+    @app_commands.command(
+        name="confirm",
+        description="ระบบยืนยันตัวตนด้วยภาพ"
+    )
+    @app_commands.guilds(discord.Object(id=1476624073990738022))
     async def reportforduty(self, interaction: discord.Interaction):
 
         embed = discord.Embed(
