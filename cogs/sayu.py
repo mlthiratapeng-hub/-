@@ -2,12 +2,16 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from discord.ui import View, Button, Modal, TextInput
-from PIL import Image, ImageDraw, ImageFont, ImageFilter
+from PIL import Image, ImageDraw, ImageFont
 import random
 import string
 import io
 
-# ================= CAPTCHA =================
+# เก็บ captcha ชั่วคราว {user_id: code}
+captcha_cache = {}
+
+
+# ===== CAPTCHA =====
 
 def generate_text():
     length = random.randint(4, 8)
@@ -16,33 +20,24 @@ def generate_text():
 
 
 def generate_image(text):
-    width, height = 350, 130
+    width, height = 360, 140
     image = Image.new("RGB", (width, height), (255, 255, 255))
     draw = ImageDraw.Draw(image)
 
     try:
-        font = ImageFont.truetype("arial.ttf", 60)
+        font = ImageFont.truetype("arial.ttf", 65)
     except:
         font = ImageFont.load_default()
 
-    # วาดตัวหนังสือแบบเละ ๆ
+    spacing = width // (len(text) + 1)
+
     for i, char in enumerate(text):
-        x = 30 + i * 40 + random.randint(-10, 10)
-        y = 30 + random.randint(-15, 15)
+        x = spacing * (i + 1) - 20
+        y = random.randint(25, 40)
+        draw.text((x, y), char, font=font, fill=(0, 0, 0))
 
-        draw.text(
-            (x, y),
-            char,
-            font=font,
-            fill=(
-                random.randint(0, 150),
-                random.randint(0, 150),
-                random.randint(0, 150),
-            ),
-        )
-
-    # เส้นกวนตา
-    for _ in range(8):
+    # เส้นกันบอท
+    for _ in range(4):
         draw.line(
             (
                 random.randint(0, width),
@@ -50,22 +45,16 @@ def generate_image(text):
                 random.randint(0, width),
                 random.randint(0, height),
             ),
-            fill=(
-                random.randint(0, 255),
-                random.randint(0, 255),
-                random.randint(0, 255),
-            ),
-            width=3,
+            fill=(120, 120, 120),
+            width=2,
         )
 
-    # จุด noise
-    for _ in range(500):
+    # จุด noise เบา ๆ
+    for _ in range(150):
         draw.point(
             (random.randint(0, width), random.randint(0, height)),
-            fill=(0, 0, 0),
+            fill=(160, 160, 160),
         )
-
-    image = image.filter(ImageFilter.GaussianBlur(1))
 
     buffer = io.BytesIO()
     image.save(buffer, format="PNG")
@@ -73,59 +62,62 @@ def generate_image(text):
     return buffer
 
 
-# ================= MODAL =================
+# ===== MODAL =====
 
 class CaptchaModal(Modal):
-    def __init__(self, text, role: discord.Role):
-        super().__init__(title="Verify Yourself")
-        self.correct = text
+    def __init__(self, role):
+        super().__init__(title="กรอกรหัสยืนยัน")
         self.role = role
 
-        self.input = TextInput(
-            label="พิมพ์ตัวอักษรตามภาพ",
+        self.answer = TextInput(
+            label="พิมพ์ตัวเลขและตัวอักษรให้ถูกต้อง",
             max_length=8,
         )
-        self.add_item(self.input)
+        self.add_item(self.answer)
 
     async def on_submit(self, interaction: discord.Interaction):
 
-        if self.input.value.upper() == self.correct:
-            try:
-                await interaction.user.add_roles(self.role)
-                embed = discord.Embed(
-                    title="🌶️ สำเร็จ",
-                    description=f"ได้รับยศ {self.role.mention}",
-                    color=discord.Color.green(),
-                )
-            except:
-                embed = discord.Embed(
-                    title="⚠ บอทให้ยศไม่ได้",
-                    description="เช็คตำแหน่งยศบอท",
-                    color=discord.Color.orange(),
-                )
+        user_id = interaction.user.id
+
+        if user_id not in captcha_cache:
+            await interaction.response.send_message(
+                "🍒 คุณยังไม่ได้กดสุ่มรหัส",
+                ephemeral=True
+            )
+            return
+
+        correct_code = captcha_cache[user_id]
+
+        if self.answer.value.upper() == correct_code:
+            await interaction.user.add_roles(self.role)
+            del captcha_cache[user_id]
+
+            await interaction.response.send_message(
+                f"🍃 สำเร็จ ได้รับยศ {self.role.mention}",
+                ephemeral=True
+            )
         else:
-            embed = discord.Embed(
-                title="💢 ไม่ถูกต้อง",
-                description="กดปุ่มใหม่เพื่อรับรหัสใหม่",
-                color=discord.Color.red(),
+            await interaction.response.send_message(
+                "💢 รหัสไม่ถูกต้อง กดสุ่มใหม่อีกครั้ง",
+                ephemeral=True
             )
 
-        await interaction.response.send_message(embed=embed, ephemeral=True)
 
-
-# ================= VIEW =================
+# ===== VIEW =====
 
 class VerifyView(View):
-    def __init__(self, role: discord.Role):
+    def __init__(self, role):
         super().__init__(timeout=None)
         self.role = role
 
-    @discord.ui.button(label="check", style=discord.ButtonStyle.green, emoji="🍇")
-    async def verify(self, interaction: discord.Interaction, button: Button):
+    # ปุ่มที่ 1: สุ่มรหัส
+    @discord.ui.button(label="สุ่มรหัส", style=discord.ButtonStyle.blurple, emoji="🍲")
+    async def generate(self, interaction: discord.Interaction, button: Button):
 
         text = generate_text()
-        image_buffer = generate_image(text)
+        captcha_cache[interaction.user.id] = text
 
+        image_buffer = generate_image(text)
         file = discord.File(image_buffer, filename="captcha.png")
 
         embed = discord.Embed(
@@ -141,18 +133,22 @@ class VerifyView(View):
             ephemeral=True,
         )
 
-        await interaction.followup.send_modal(
-            CaptchaModal(text, self.role)
+    # ปุ่มที่ 2: กรอกรหัส
+    @discord.ui.button(label="กรอกรหัส", style=discord.ButtonStyle.green, emoji="📁")
+    async def input_code(self, interaction: discord.Interaction, button: Button):
+
+        await interaction.response.send_modal(
+            CaptchaModal(self.role)
         )
 
 
-# ================= COG =================
+# ===== COG =====
 
 class Sayu(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="safety", description="สร้างระบบกันบอท")
+    @app_commands.command(name="safety", description="สร้างระบบยืนยันตัวตนด้วยภาพ")
     @app_commands.checks.has_permissions(administrator=True)
     async def nobots(
         self,
@@ -164,20 +160,18 @@ class Sayu(commands.Cog):
         embed = discord.Embed(
             title="🔐 System | Verify",
             description=(
-                "• กดปุ่มด้านล่างเพื่อยืนยันตัวตน\n"
-                "• ระบบจะสุ่มรหัสใหม่ทุกครั้งที่กด\n"
+                "• กด 'สุ่มรหัส' เพื่อรับภาพ\n"
+                "• กด 'กรอกรหัส' เพื่อพิมพ์คำตอบ\n"
                 "• ใส่ตัวเลขให้ถูกต้องเพื่อรับยศ"
             ),
             color=discord.Color.green(),
         )
 
-        view = VerifyView(role)
-
-        await channel.send(embed=embed, view=view)
+        await channel.send(embed=embed, view=VerifyView(role))
 
         await interaction.response.send_message(
-            "สร้างระบบเรียบร้อยแล้ว",
-            ephemeral=True,
+            "🍇 สร้างระบบเรียบร้อยแล้ว",
+            ephemeral=True
         )
 
 
