@@ -42,3 +42,7 @@ async def on_message(message):
 init_db()
 
 bot.run(os.getenv("TOKEN"))
+
+}
+)
+}
