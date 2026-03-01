@@ -149,8 +149,8 @@ class Verify(commands.Cog):
         self.bot = bot
 
     @app_commands.command(
-        name="verify_identity",
-        description="ระบบยืนยันตัวตน"
+        name="suspect",
+        description="ระบบยืนยันตัวตนด้วยภาพ"
     )
     async def verify_identity(self, interaction: discord.Interaction):
 
