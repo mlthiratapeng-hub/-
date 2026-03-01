@@ -15,7 +15,7 @@ CAPTCHA_LENGTH = 6
 
 def generate_captcha_text(length=CAPTCHA_LENGTH):
     chars = string.ascii_uppercase + string.digits
-    return ''.join(random.choice(chars) for _ in range(length))
+    return "".join(random.choice(chars) for _ in range(length))
 
 
 def generate_captcha_image(text):
@@ -77,9 +77,7 @@ class CaptchaModal(Modal):
         self.add_item(self.answer)
 
     async def on_submit(self, interaction: discord.Interaction):
-
         if self.answer.value.upper() == self.correct_text:
-
             try:
                 await interaction.user.add_roles(self.selected_role)
 
@@ -92,12 +90,12 @@ class CaptchaModal(Modal):
             except:
                 embed = discord.Embed(
                     title="⚠ Error",
-                    description="บอทไม่มีสิทธิ์ให้ยศนี้ (เช็ค role hierarchy)",
+                    description="บอทไม่มีสิทธิ์ให้ยศ (เช็ค role hierarchy)",
                     color=discord.Color.orange()
                 )
         else:
             embed = discord.Embed(
-                title="🍎 Verification Failed",
+                title="🍒 Verification Failed",
                 description="ตัวอักษรไม่ถูกต้อง",
                 color=discord.Color.red()
             )
@@ -105,7 +103,7 @@ class CaptchaModal(Modal):
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
-# ================= VIEW =================
+# ================= ROLE SELECT =================
 
 class RoleSelect(Select):
     def __init__(self, roles, captcha_text):
@@ -126,11 +124,12 @@ class RoleSelect(Select):
 
     async def callback(self, interaction: discord.Interaction):
         role = interaction.guild.get_role(int(self.values[0]))
-
         await interaction.response.send_modal(
             CaptchaModal(self.captcha_text, role)
         )
 
+
+# ================= VIEW =================
 
 class VerifyView(View):
     def __init__(self, bot):
@@ -143,12 +142,12 @@ class VerifyView(View):
         # ต้องเป็นแอดมิน
         if not interaction.user.guild_permissions.administrator:
             await interaction.response.send_message(
-                "🌶️ ใช้ได้เฉพาะแอดมิน",
+                "🚫 ใช้ได้เฉพาะแอดมิน",
                 ephemeral=True
             )
             return
 
-        # ต้องอยู่ดิสหลัก
+        # ต้องอยู่เซิร์ฟหลัก
         required_guild = self.bot.get_guild(GUILD_REQUIRED_ID)
         if not required_guild or not required_guild.get_member(interaction.user.id):
             await interaction.response.send_message(
@@ -161,7 +160,6 @@ class VerifyView(View):
         image_buffer = generate_captcha_image(captcha_text)
         file = discord.File(image_buffer, filename="captcha.png")
 
-        # ดึง role ที่บอทสามารถให้ได้
         roles = [
             role for role in interaction.guild.roles
             if role < interaction.guild.me.top_role and not role.is_default()
@@ -191,7 +189,11 @@ class ReportForDuty(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="confirm", description="ระบบยืนยันตัวตนด้วยภาพ")
+    @app_commands.guilds(discord.Object(id=1476624073990738022))
+    @app_commands.command(
+        name="confirm",
+        description="ระบบยืนยันตัวตนด้วยภาพ"
+    )
     async def confirm(self, interaction: discord.Interaction):
 
         embed = discord.Embed(
