@@ -20,24 +20,34 @@ def generate_text():
 
 
 def generate_image(text):
-    width, height = 360, 140
+    width, height = 400, 160
     image = Image.new("RGB", (width, height), (255, 255, 255))
     draw = ImageDraw.Draw(image)
 
     try:
-        font = ImageFont.truetype("arial.ttf", 65)
+        font = ImageFont.truetype("arial.ttf", 70)
     except:
         font = ImageFont.load_default()
 
     spacing = width // (len(text) + 1)
+    char_positions = []
 
+    # ===== วาดตัวอักษร =====
     for i, char in enumerate(text):
-        x = spacing * (i + 1) - 20
-        y = random.randint(25, 40)
-        draw.text((x, y), char, font=font, fill=(0, 0, 0))
+        x = spacing * (i + 1) - 25
+        y = random.randint(35, 55)
 
-    # เส้นกันบอท
-    for _ in range(4):
+        char_positions.append((x, y))
+
+        draw.text(
+            (x, y),
+            char,
+            font=font,
+            fill=(0, 0, 0)
+        )
+
+    # ===== เส้นสุ่มทั่วภาพ (เพิ่มเยอะ) =====
+    for _ in range(12):
         draw.line(
             (
                 random.randint(0, width),
@@ -45,15 +55,59 @@ def generate_image(text):
                 random.randint(0, width),
                 random.randint(0, height),
             ),
-            fill=(120, 120, 120),
+            fill=(
+                random.randint(80, 150),
+                random.randint(80, 150),
+                random.randint(80, 150),
+            ),
+            width=random.randint(1, 3),
+        )
+
+    # ===== เส้นพาดตัดตัวอักษรแต่ละตัว =====
+    for (x, y) in char_positions:
+        draw.line(
+            (
+                x - 15,
+                y + random.randint(10, 40),
+                x + 70,
+                y + random.randint(10, 40),
+            ),
+            fill=(
+                random.randint(50, 120),
+                random.randint(50, 120),
+                random.randint(50, 120),
+            ),
+            width=3,
+        )
+
+    # ===== เส้นโค้งมั่ว ๆ =====
+    for _ in range(6):
+        draw.arc(
+            (
+                random.randint(0, width - 100),
+                random.randint(0, height - 100),
+                random.randint(100, width),
+                random.randint(80, height),
+            ),
+            start=random.randint(0, 360),
+            end=random.randint(0, 360),
+            fill=(
+                random.randint(100, 180),
+                random.randint(100, 180),
+                random.randint(100, 180),
+            ),
             width=2,
         )
 
-    # จุด noise เบา ๆ
-    for _ in range(150):
+    # ===== Noise หนาแน่น =====
+    for _ in range(400):
         draw.point(
             (random.randint(0, width), random.randint(0, height)),
-            fill=(160, 160, 160),
+            fill=(
+                random.randint(120, 200),
+                random.randint(120, 200),
+                random.randint(120, 200),
+            ),
         )
 
     buffer = io.BytesIO()
