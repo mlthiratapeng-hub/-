@@ -4,11 +4,9 @@ import os
 from database import init_db
 
 # ====== ตั้งค่า ======
-ALLOWED_GUILD_ID = 1476624073990738022  # 🔥 ใส่ไอดีเซิร์ฟจริงของคุณ
+ALLOWED_GUILD_ID = 1476624073990738022  # (ยังเก็บไว้ เผื่อใช้ใน cog)
 
-# 🔥 แก้ตรงนี้
 intents = discord.Intents.all()
-
 
 class MyBot(commands.Bot):
     def __init__(self):
@@ -24,19 +22,15 @@ class MyBot(commands.Bot):
                 await self.load_extension(f"cogs.{file[:-3]}")
                 print(f"Loaded {file}")
 
-        # 🔥 สำคัญมาก: Sync แบบ Guild เท่านั้น
-        guild = discord.Object(id=ALLOWED_GUILD_ID)
-        synced = await self.tree.sync(guild=guild)
-        print(f"Synced {len(synced)} commands to guild")
-
+        # 🔥 Sync แบบ Global (ทุกเซิร์ฟ)
+        synced = await self.tree.sync()
+        print(f"Synced {len(synced)} global commands")
 
 bot = MyBot()
-
 
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}")
-
 
 @bot.event
 async def on_message(message):
@@ -44,8 +38,7 @@ async def on_message(message):
         return
     await bot.process_commands(message)
 
-
-# เริ่มระบบ
+# เริ่มระบบฐานข้อมูล
 init_db()
 
 bot.run(os.getenv("TOKEN"))
