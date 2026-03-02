@@ -18,7 +18,7 @@ class Backup(commands.Cog):
     # =========================
     # /safe (Owner only)
     # =========================
-    @app_commands.command(name="safe", description="สำรองโครงสร้างห้องทั้งหมด (เฉพาะหัวดิส)")
+    @app_commands.command(name="setbackup", description="สำรองโครงสร้างห้องทั้งหมด (เฉพาะหัวดิส)")
     async def safe(self, interaction: discord.Interaction):
 
         if not self.is_owner(interaction):
