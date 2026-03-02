@@ -18,7 +18,7 @@ from urllib.parse import urlparse
 from datetime import datetime, timezone
 
 ALLOWED_GUILD_ID = 1476624073990738022
-ALLOWED_CHANNEL_ID = 1476914330854490204
+ALLOWED_CHANNEL_ID = 1477830343774965851
 
 VT_API = os.getenv("VT_API")
 GSB_API = os.getenv("GSB_API")
