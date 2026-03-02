@@ -3,54 +3,45 @@ from discord.ext import commands
 from discord import app_commands
 import re
 
-# เก็บสถานะเปิด/ปิด ต่อเซิร์ฟเวอร์
-anti_link_status = {}
+# เก็บโหมดของแต่ละเซิร์ฟเวอร์
+# 0 = ปิด
+# 1 = กันลิงก์เชิญ Discord
+# 2 = กันลิงก์ภายนอก (ยกเว้น Discord invite)
+# 3 = กันทุกลิงก์
+anti_link_mode = {}
 
-class AntiLinkToggleView(discord.ui.View):
+class AntiLinkModeView(discord.ui.View):
     def __init__(self, guild_id):
         super().__init__(timeout=60)
         self.guild_id = guild_id
 
-    @discord.ui.button(label="เปิดระบบ", style=discord.ButtonStyle.success, emoji="📁")
-    async def enable(self, interaction: discord.Interaction, button: discord.ui.Button):
-        anti_link_status[self.guild_id] = True
-
+    async def update_embed(self, interaction, text, color):
         embed = discord.Embed(
             title="🔗 ระบบป้องกันลิงก์",
-            description="📁 เปิดระบบป้องกันลิงก์เรียบร้อยแล้ว",
-            color=discord.Color.green()
+            description=text,
+            color=color
         )
         await interaction.response.edit_message(embed=embed, view=None)
 
-    @discord.ui.button(label="ปิดระบบ", style=discord.ButtonStyle.danger, emoji="💢")
+    @discord.ui.button(label="1️⃣ กันลิงก์เชิญดิส", style=discord.ButtonStyle.primary)
+    async def invite_only(self, interaction: discord.Interaction, button: discord.ui.Button):
+        anti_link_mode[self.guild_id] = 1
+        await self.update_embed(interaction, "เปิดโหมด: กันเฉพาะลิงก์เชิญ Discord", discord.Color.blue())
+
+    @discord.ui.button(label="2️⃣ กันลิงก์ภายนอก", style=discord.ButtonStyle.success)
+    async def external_only(self, interaction: discord.Interaction, button: discord.ui.Button):
+        anti_link_mode[self.guild_id] = 2
+        await self.update_embed(interaction, "เปิดโหมด: กันลิงก์ภายนอก (อนุญาต Discord Invite)", discord.Color.green())
+
+    @discord.ui.button(label="3️⃣ กันทุกลิงก์", style=discord.ButtonStyle.danger)
+    async def all_links(self, interaction: discord.Interaction, button: discord.ui.Button):
+        anti_link_mode[self.guild_id] = 3
+        await self.update_embed(interaction, "เปิดโหมด: กันทุกลิงก์", discord.Color.red())
+
+    @discord.ui.button(label="🍎 ปิดระบบ", style=discord.ButtonStyle.secondary)
     async def disable(self, interaction: discord.Interaction, button: discord.ui.Button):
-        anti_link_status[self.guild_id] = False
-
-        embed = discord.Embed(
-            title="🔗 ระบบป้องกันลิงก์",
-            description="💢 ปิดระบบป้องกันลิงก์เรียบร้อยแล้ว",
-            color=discord.Color.red()
-        )
-        await interaction.response.edit_message(embed=embed, view=None)
-
-
-class AntiLinkMainView(discord.ui.View):
-    def __init__(self, guild_id):
-        super().__init__(timeout=60)
-        self.guild_id = guild_id
-
-    @discord.ui.button(label="เลือกการตั้งค่า", style=discord.ButtonStyle.primary)
-    async def settings(self, interaction: discord.Interaction, button: discord.ui.Button):
-        embed = discord.Embed(
-            title="🔗 ตั้งค่าระบบป้องกันลิงก์",
-            description="เลือกเปิดหรือปิดระบบด้านล่างค่ะ...",
-            color=discord.Color.blurple()
-        )
-
-        await interaction.response.edit_message(
-            embed=embed,
-            view=AntiLinkToggleView(self.guild_id)
-        )
+        anti_link_mode[self.guild_id] = 0
+        await self.update_embed(interaction, "ปิดระบบป้องกันลิงก์แล้ว", discord.Color.greyple())
 
 
 class AntiLink(commands.Cog):
@@ -62,26 +53,37 @@ class AntiLink(commands.Cog):
     @app_commands.command(name="anti-link", description="ตั้งค่าระบบป้องกันลิงก์")
     async def anti_link(self, interaction: discord.Interaction):
 
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message("🍅 คำสั่งนี้ใช้ได้เฉพาะแอดมิน", ephemeral=True)
+            return
+
         guild_id = interaction.guild.id
 
-        if guild_id not in anti_link_status:
-            anti_link_status[guild_id] = False
+        if guild_id not in anti_link_mode:
+            anti_link_mode[guild_id] = 0
+
+        mode_text = {
+            0: "❌ ปิดอยู่",
+            1: "1️⃣ กันลิงก์เชิญดิส",
+            2: "2️⃣ กันลิงก์ภายนอก",
+            3: "3️⃣ กันทุกลิงก์"
+        }
 
         embed = discord.Embed(
             title="🔗 ตั้งค่าระบบป้องกันลิงก์",
-            description="กดปุ่มด้านล่างเพื่อจัดการระบบ",
+            description="เลือกโหมดที่ต้องการด้านล่าง",
             color=discord.Color.blurple()
         )
 
         embed.add_field(
             name="สถานะปัจจุบัน",
-            value="📁 เปิดอยู่" if anti_link_status[guild_id] else "💢 ปิดอยู่",
+            value=mode_text[anti_link_mode[guild_id]],
             inline=False
         )
 
         await interaction.response.send_message(
             embed=embed,
-            view=AntiLinkMainView(guild_id),
+            view=AntiLinkModeView(guild_id),
             ephemeral=True
         )
 
@@ -93,41 +95,56 @@ class AntiLink(commands.Cog):
             return
 
         guild_id = message.guild.id
+        mode = anti_link_mode.get(guild_id, 0)
 
-        if not anti_link_status.get(guild_id, False):
+        if mode == 0:
             return
 
-        # ตรวจลิงก์
-        if re.search(r"https?://", message.content):
+        content = message.content.lower()
 
-            try:
-                await message.delete()
-            except:
-                pass
+        has_link = re.search(r"https?://", content)
+        has_invite = re.search(r"(discord\.gg/|discord\.com/invite/)", content)
 
-            key = (guild_id, message.author.id)
-            self.warnings[key] = self.warnings.get(key, 0) + 1
-            count = self.warnings[key]
+        violation = False
 
-            # เตือนครั้งที่ 1-2
-            if count < 3:
-                await message.channel.send(
-                    f"💢 {message.author.mention} ห้ามส่งลิงก์ ({count}/3)",
-                    delete_after=5
-                )
-                return
+        if mode == 1 and has_invite:
+            violation = True
 
-            # ครบ 3 ครั้ง แบน
-            try:
-                await message.author.ban(reason="ส่งลิงก์ครบ 3 ครั้ง")
-                await message.channel.send(
-                    f"🔨 {message.author.mention} ถูกแบน (ส่งลิงก์ครบ 3 ครั้ง)",
-                    delete_after=5
-                )
-            except Exception as e:
-                print("BAN ERROR:", e)
+        elif mode == 2 and has_link and not has_invite:
+            violation = True
 
-            self.warnings.pop(key, None)
+        elif mode == 3 and has_link:
+            violation = True
+
+        if not violation:
+            return
+
+        try:
+            await message.delete()
+        except:
+            pass
+
+        key = (guild_id, message.author.id)
+        self.warnings[key] = self.warnings.get(key, 0) + 1
+        count = self.warnings[key]
+
+        if count < 3:
+            await message.channel.send(
+                f"💢 {message.author.mention} ห้ามส่งลิงก์ ({count}/3)",
+                delete_after=5
+            )
+            return
+
+        try:
+            await message.author.ban(reason="ส่งลิงก์ครบ 3 ครั้ง")
+            await message.channel.send(
+                f"🔨 {message.author.mention} ถูกแบน (ส่งลิงก์ครบ 3 ครั้ง)",
+                delete_after=5
+            )
+        except Exception as e:
+            print("BAN ERROR:", e)
+
+        self.warnings.pop(key, None)
 
 
 async def setup(bot):
