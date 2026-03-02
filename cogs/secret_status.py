@@ -8,7 +8,7 @@ class SecretStatus(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="What_do_you_think_it_is")
+    @app_commands.command(name="what_do_you_think_it_is")
     async def secret_command(self, interaction: discord.Interaction):
 
         # เช็คว่าเป็นคนที่กำหนดไหม
