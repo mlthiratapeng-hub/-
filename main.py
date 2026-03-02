@@ -1,11 +1,10 @@
 import discord
 from discord.ext import commands
 import os
-import wavelink
 from database import init_db
 
 # ====== ตั้งค่า ======
-ALLOWED_GUILD_ID = 1476624073990738022
+ALLOWED_GUILD_ID = 1476624073990738022  # (ยังเก็บไว้ เผื่อใช้ใน cog)
 
 intents = discord.Intents.all()
 
@@ -17,31 +16,15 @@ class MyBot(commands.Bot):
         )
 
     async def setup_hook(self):
-
-        # =========================
-        # 🔥 CONNECT LAVALINK (Railway)
-        # =========================
-
-        node = wavelink.Node(
-            uri=os.getenv("LAVALINK_URL"),       # ตั้งใน Railway
-            password=os.getenv("LAVALINK_PASSWORD")
-        )
-
-        await wavelink.Pool.connect(client=self, nodes=[node])
-        print("✅ Lavalink Connected")
-
-        # =========================
         # โหลดทุก cog
-        # =========================
-
         for file in os.listdir("./cogs"):
             if file.endswith(".py"):
                 await self.load_extension(f"cogs.{file[:-3]}")
                 print(f"Loaded {file}")
 
+        # 🔥 Sync แบบ Global (ทุกเซิร์ฟ)
         synced = await self.tree.sync()
         print(f"Synced {len(synced)} global commands")
-
 
 bot = MyBot()
 
@@ -114,6 +97,7 @@ async def on_app_command_completion(interaction: discord.Interaction, command):
 
 # =========================================================
 
+# เริ่มระบบฐานข้อมูล
 init_db()
 
 bot.run(os.getenv("TOKEN"))
