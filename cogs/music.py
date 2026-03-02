@@ -2,8 +2,8 @@ import discord
 from discord.ext import commands, tasks
 from discord import app_commands
 import wavelink
-import asyncio
 from datetime import timedelta
+
 
 # ==============================
 # 🎵 Utility
@@ -18,6 +18,7 @@ def progress_bar(position, length):
     filled = int((position / length) * total) if length > 0 else 0
     return "▰" * filled + "▱" * (total - filled)
 
+
 # ==============================
 # 🎛 UI VIEW
 # ==============================
@@ -26,10 +27,6 @@ class MusicView(discord.ui.View):
     def __init__(self, player):
         super().__init__(timeout=None)
         self.player = player
-
-    @discord.ui.button(label="⏮", style=discord.ButtonStyle.secondary)
-    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message("🍅 ยังไม่รองรับย้อนเพลง", ephemeral=True)
 
     @discord.ui.button(label="⏯", style=discord.ButtonStyle.primary)
     async def pause_resume(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -50,32 +47,6 @@ class MusicView(discord.ui.View):
         await self.player.disconnect()
         await interaction.response.send_message("⏹ หยุดทั้งหมด", ephemeral=True)
 
-    @discord.ui.button(label="📄", style=discord.ButtonStyle.secondary)
-    async def queue(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not self.player.queue:
-            await interaction.response.send_message("ไม่มีเพลงในคิว", ephemeral=True)
-            return
-
-        desc = ""
-        for i, track in enumerate(self.player.queue, start=1):
-            desc += f"{i}. {track.title}\n"
-
-        embed = discord.Embed(
-            title="📜 คิวเพลง",
-            description=desc[:4000],
-            color=discord.Color.blue()
-        )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-
-    @discord.ui.button(label="🔉", style=discord.ButtonStyle.secondary)
-    async def vol_down(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.player.set_volume(max(self.player.volume - 10, 0))
-        await interaction.response.send_message("🔉 ลดเสียง", ephemeral=True)
-
-    @discord.ui.button(label="🔊", style=discord.ButtonStyle.secondary)
-    async def vol_up(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.player.set_volume(min(self.player.volume + 10, 200))
-        await interaction.response.send_message("🔊 เพิ่มเสียง", ephemeral=True)
 
 # ==============================
 # 🎵 COG
@@ -86,11 +57,11 @@ class Music(commands.Cog):
         self.bot = bot
         self.now_playing_message = {}
 
-    @app_commands.command(name="play", description="เล่นเพลง")
+    @app_commands.command(name="play", description="เล่นเพลงจากชื่อหรือ URL")
     async def play(self, interaction: discord.Interaction, query: str):
 
         if not interaction.user.voice:
-            await interaction.response.send_message("เข้าห้องเสียงก่อน", ephemeral=True)
+            await interaction.response.send_message("🍅 เข้าห้องเสียงก่อน", ephemeral=True)
             return
 
         await interaction.response.defer()
@@ -102,16 +73,21 @@ class Music(commands.Cog):
         else:
             player = interaction.guild.voice_client
 
+        # 🔥 แก้ตรงนี้ให้ค้นหาจากชื่อเพลงได้
+        if not query.startswith("http"):
+            query = f"ytsearch:{query}"
+
         tracks = await wavelink.Playable.search(query)
+
         if not tracks:
-            await interaction.followup.send("ไม่พบเพลง")
+            await interaction.followup.send("🍅 ไม่พบเพลง")
             return
 
         track = tracks[0]
 
         if player.playing:
             await player.queue.put_wait(track)
-            await interaction.followup.send(f"🥕 เพิ่มเข้าคิว: {track.title}")
+            await interaction.followup.send(f"📌 เพิ่มเข้าคิว: **{track.title}**")
             return
 
         await player.play(track)
@@ -123,7 +99,9 @@ class Music(commands.Cog):
             color=discord.Color.purple()
         )
 
-        embed.set_thumbnail(url=track.artwork)
+        if track.artwork:
+            embed.set_thumbnail(url=track.artwork)
+
         embed.add_field(
             name="⏱ เวลา",
             value=f"`00:00` {progress_bar(0, track.length)} `{format_time(track.length)}`",
@@ -156,7 +134,9 @@ class Music(commands.Cog):
             color=discord.Color.purple()
         )
 
-        embed.set_thumbnail(url=track.artwork)
+        if track.artwork:
+            embed.set_thumbnail(url=track.artwork)
+
         embed.add_field(
             name="⏱ เวลา",
             value=f"`{format_time(position)}` {progress_bar(position, track.length)} `{format_time(track.length)}`",
@@ -173,6 +153,7 @@ class Music(commands.Cog):
             next_track = await player.queue.get_wait()
             await player.play(next_track)
             self.update_progress.start(player, next_track)
+
 
 async def setup(bot):
     await bot.add_cog(Music(bot))
