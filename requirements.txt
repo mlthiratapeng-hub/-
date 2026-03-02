@@ -6,3 +6,4 @@ dnspython
 pillow
 openai
 python-dotenv
+pytz
