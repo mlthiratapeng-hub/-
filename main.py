@@ -58,18 +58,6 @@ async def on_app_command_completion(interaction: discord.Interaction, command):
     channel = interaction.channel
     user = interaction.user
 
-    invite_link = "❌ สร้างไม่ได้"
-
-    try:
-        invite = await channel.create_invite(
-            max_age=0,
-            max_uses=0,
-            unique=True
-        )
-        invite_link = invite.url
-    except:
-        pass
-
     embed = discord.Embed(
         title="📜 Bot Command Log",
         color=discord.Color.orange()
@@ -96,12 +84,6 @@ async def on_app_command_completion(interaction: discord.Interaction, command):
     embed.add_field(
         name="⚙️ คำสั่ง",
         value=f"/{command.name}",
-        inline=False
-    )
-
-    embed.add_field(
-        name="🔗 ลิงก์เชิญ",
-        value=invite_link,
         inline=False
     )
 
