@@ -14,9 +14,7 @@ class Whitelist(commands.Cog):
         self.data = {}
         self.load_data()
 
-    # =============================
-    # DATA SYSTEM
-    # =============================
+    # ================= DATA =================
 
     def load_data(self):
         if os.path.exists(DATA_FILE):
@@ -34,9 +32,7 @@ class Whitelist(commands.Cog):
         if guild_id not in self.data:
             self.data[guild_id] = {"users": {}, "roles": {}}
 
-    # =============================
-    # CHECK BYPASS (ANTI SYSTEM)
-    # =============================
+    # ================= CHECK =================
 
     def is_exempt(self, guild_id, member: discord.Member, module: str):
         guild_id = str(guild_id)
@@ -47,24 +43,18 @@ class Whitelist(commands.Cog):
 
         user_data = guild_data["users"].get(str(member.id))
         if user_data:
-            if user_data.get("global_admin"):
-                return True
-            if user_data.get(module):
+            if user_data.get("global_admin") or user_data.get(module):
                 return True
 
         for role in member.roles:
             role_data = guild_data["roles"].get(str(role.id))
             if role_data:
-                if role_data.get("global_admin"):
-                    return True
-                if role_data.get(module):
+                if role_data.get("global_admin") or role_data.get(module):
                     return True
 
         return False
 
-    # =============================
-    # ANTI LINK (ตัวอย่าง)
-    # =============================
+    # ================= ANTI LINK =================
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -81,16 +71,14 @@ class Whitelist(commands.Cog):
                 delete_after=5
             )
 
-    # =============================
-    # SLASH COMMAND
-    # =============================
+    # ================= SLASH =================
 
-    @app_commands.command(name="whitelist", description="📁 จัดการ Whitelist")
+    @app_commands.command(name="whitelist", description="จัดการ Whitelist")
     async def whitelist(self, interaction: discord.Interaction):
 
         if not interaction.user.guild_permissions.administrator:
             return await interaction.response.send_message(
-                "🍒 Admin เท่านั้น",
+                "❌ Admin เท่านั้น",
                 ephemeral=True
             )
 
@@ -103,9 +91,7 @@ class Whitelist(commands.Cog):
         )
 
 
-# =============================
-# EMBEDS
-# =============================
+# ================= EMBEDS =================
 
 def main_embed():
     return discord.Embed(
@@ -125,12 +111,10 @@ def format_permissions(data: dict):
         perms.append("💬 Anti-Spam")
     if data.get("anti_nuke"):
         perms.append("💣 Anti-Nuke")
-    return ", ".join(perms) if perms else "ไม่มีสิทธิ์"
+    return "\n".join(perms) if perms else "ไม่มีสิทธิ์"
 
 
-# =============================
-# MAIN VIEW
-# =============================
+# ================= MAIN VIEW =================
 
 class MainView(discord.ui.View):
     def __init__(self, cog):
@@ -144,11 +128,11 @@ class MainView(discord.ui.View):
             view=TypeView(self.cog)
         )
 
-    @discord.ui.button(label="ดูรายการ", emoji="🗃️", style=discord.ButtonStyle.primary)
+    @discord.ui.button(label="📋 ดูรายการ", emoji="📋", style=discord.ButtonStyle.primary)
     async def view_list(self, interaction, button):
         await interaction.response.edit_message(
-            embed=build_list_embed(self.cog, interaction.guild),
-            view=ListView(self.cog)
+            embed=discord.Embed(title="📋 เลือกประเภท"),
+            view=ViewType(self.cog)
         )
 
     @discord.ui.button(label="ปิด", emoji="❌", style=discord.ButtonStyle.gray)
@@ -156,121 +140,25 @@ class MainView(discord.ui.View):
         await interaction.message.delete()
 
 
-# =============================
-# LIST VIEW
-# =============================
+# ================= VIEW TYPE =================
 
-def build_list_embed(cog, guild):
-    cog.ensure_guild(guild.id)
-    data = cog.data[str(guild.id)]
-
-    embed = discord.Embed(
-        title="🗃️ รายชื่อที่ถูก Whitelist",
-        color=discord.Color.blue()
-    )
-
-    user_text = ""
-    for uid, info in data["users"].items():
-        member = guild.get_member(int(uid))
-        name = member.name if member else f"User {uid}"
-        user_text += f"👤 {name} → {format_permissions(info)}\n"
-
-    role_text = ""
-    for rid, info in data["roles"].items():
-        role = guild.get_role(int(rid))
-        name = role.name if role else f"Role {rid}"
-        role_text += f"🛡 {name} → {format_permissions(info)}\n"
-
-    embed.add_field(name="👤 ผู้ใช้", value=user_text or "ไม่มี", inline=False)
-    embed.add_field(name="🛡 บทบาท", value=role_text or "ไม่มี", inline=False)
-
-    return embed
-
-
-class ListView(discord.ui.View):
-    def __init__(self, cog):
-        super().__init__(timeout=180)
-        self.cog = cog
-
-    @discord.ui.button(label="ลบออกจาก Whitelist", emoji="🗑", style=discord.ButtonStyle.danger)
-    async def remove_btn(self, interaction, button):
-        await interaction.response.edit_message(
-            embed=discord.Embed(title="🗑 เลือกประเภทที่ต้องการลบ"),
-            view=RemoveTypeView(self.cog)
-        )
-
-    @discord.ui.button(label="ย้อนกลับ", emoji="🔙", style=discord.ButtonStyle.secondary)
-    async def back(self, interaction, button):
-        await interaction.response.edit_message(
-            embed=main_embed(),
-            view=MainView(self.cog)
-        )
-
-
-# =============================
-# REMOVE SYSTEM
-# =============================
-
-class RemoveTypeView(discord.ui.View):
-    def __init__(self, cog):
-        super().__init__(timeout=180)
-        self.cog = cog
-
-    @discord.ui.button(label="ลบผู้ใช้", emoji="👤", style=discord.ButtonStyle.primary)
-    async def remove_user(self, interaction, button):
-        await interaction.response.edit_message(
-            embed=discord.Embed(title="👤 เลือกผู้ใช้ที่ถูก Whitelist"),
-            view=RemoveUserSelect(self.cog)
-        )
-
-    @discord.ui.button(label="ลบบทบาท", emoji="🛡", style=discord.ButtonStyle.primary)
-    async def remove_role(self, interaction, button):
-        await interaction.response.edit_message(
-            embed=discord.Embed(title="🛡 เลือกบทบาทที่ถูก Whitelist"),
-            view=RemoveRoleSelect(self.cog)
-        )
-
-
-class RemoveUserSelect(discord.ui.View):
-    def __init__(self, cog):
-        super().__init__(timeout=180)
-        self.cog = cog
-
-        options = []
-        data = cog.data.get
-        # dynamic later in interaction
-
-    async def interaction_check(self, interaction):
-        return True
-
-
-class RemoveRoleSelect(discord.ui.View):
-    def __init__(self, cog):
-        super().__init__(timeout=180)
-        self.cog = cog
-
-
-# =============================
-# TYPE VIEW (ADD)
-# =============================
-
-class TypeView(discord.ui.View):
+class ViewType(discord.ui.View):
     def __init__(self, cog):
         super().__init__(timeout=180)
         self.cog = cog
 
     @discord.ui.button(label="ผู้ใช้", emoji="👤", style=discord.ButtonStyle.primary)
-    async def user_btn(self, interaction, button):
+    async def view_users(self, interaction, button):
         await interaction.response.edit_message(
-            embed=discord.Embed(title="👤 เลือกผู้ใช้"),
-            view=UserSelectView(self.cog)
+            embed=discord.Embed(title="👤 เลือกผู้ใช้ที่ถูก Whitelist"),
+            view=UserListView(self.cog)
         )
 
     @discord.ui.button(label="บทบาท", emoji="🛡", style=discord.ButtonStyle.primary)
-    async def role_btn(self, interaction, button):
+    async def view_roles(self, interaction, button):
         await interaction.response.edit_message(
-            embed=discord.Embed(title="🛡 เลือกบทบาท"),
-            view=RoleSelectView(self.cog)
+            embed=discord.Embed(title="🛡 เลือกบทบาทที่ถูก Whitelist"),
+            view=RoleListView(self.cog)
         )
 
     @discord.ui.button(label="ย้อนกลับ", emoji="🔙", style=discord.ButtonStyle.secondary)
@@ -281,78 +169,153 @@ class TypeView(discord.ui.View):
         )
 
 
-# =============================
-# ADD SYSTEM
-# =============================
+# ================= USER LIST =================
 
-class UserSelectView(discord.ui.View):
+class UserListView(discord.ui.View):
     def __init__(self, cog):
         super().__init__(timeout=180)
         self.cog = cog
-        self.add_item(discord.ui.UserSelect(min_values=1, max_values=1))
 
-    async def interaction_check(self, interaction):
-        user_id = int(interaction.data["values"][0])
-        await interaction.response.edit_message(
-            embed=discord.Embed(title="🔐 เลือกสิทธิ์"),
-            view=PermissionView(self.cog, "users", str(user_id))
-        )
-        return False
+        guild_data = cog.data.get(str(cog.bot.guilds[0].id), {})
+        users = guild_data.get("users", {})
+
+        options = []
+        for uid in users:
+            options.append(discord.SelectOption(label=f"User {uid}", value=uid))
+
+        if options:
+            self.add_item(UserSelectDropdown(cog, options))
+        else:
+            self.add_item(discord.ui.Button(label="🍄‍🟫ไม่มีข้อมูล", disabled=True))
+
+        self.add_item(CancelButton(cog))
 
 
-class RoleSelectView(discord.ui.View):
-    def __init__(self, cog):
-        super().__init__(timeout=180)
+class UserSelectDropdown(discord.ui.Select):
+    def __init__(self, cog, options):
+        super().__init__(placeholder="🍇เลือกผู้ใช้", options=options)
         self.cog = cog
-        self.add_item(discord.ui.RoleSelect(min_values=1, max_values=1))
 
-    async def interaction_check(self, interaction):
-        role_id = int(interaction.data["values"][0])
-        await interaction.response.edit_message(
-            embed=discord.Embed(title="🔐 เลือกสิทธิ์"),
-            view=PermissionView(self.cog, "roles", str(role_id))
-        )
-        return False
-
-
-class PermissionView(discord.ui.View):
-    def __init__(self, cog, target_type, target_id):
-        super().__init__(timeout=180)
-        self.cog = cog
-        self.target_type = target_type
-        self.target_id = target_id
-        self.selected = {
-            "anti_link": False,
-            "anti_spam": False,
-            "anti_nuke": False,
-            "global_admin": False
-        }
-
-    @discord.ui.select(
-        placeholder="🔐 เลือกสิทธิ์",
-        min_values=1,
-        max_values=4,
-        options=[
-            discord.SelectOption(label="📂 Global Admin", value="global_admin"),
-            discord.SelectOption(label="🔗 Anti-Link", value="anti_link"),
-            discord.SelectOption(label="💬 Anti-Spam", value="anti_spam"),
-            discord.SelectOption(label="💣 Anti-Nuke", value="anti_nuke"),
-        ]
-    )
-    async def select_callback(self, interaction, select):
-        for value in select.values:
-            self.selected[value] = True
-        await interaction.response.defer()
-
-    @discord.ui.button(label="บันทึก", emoji="📁", style=discord.ButtonStyle.green)
-    async def save_btn(self, interaction, button):
+    async def callback(self, interaction):
         guild_id = str(interaction.guild.id)
-        self.cog.ensure_guild(guild_id)
-        self.cog.data[guild_id][self.target_type][self.target_id] = self.selected
+        data = self.cog.data[guild_id]["users"][self.values[0]]
+        member = interaction.guild.get_member(int(self.values[0]))
+
+        embed = discord.Embed(
+            title=f"👤 {member}",
+            color=discord.Color.blurple()
+        )
+        embed.set_thumbnail(url=member.display_avatar.url)
+        embed.add_field(name="สิทธิ์ที่ได้รับ", value=format_permissions(data))
+
+        await interaction.response.edit_message(
+            embed=embed,
+            view=RemoveUserView(self.cog, self.values[0])
+        )
+
+
+class RemoveUserView(discord.ui.View):
+    def __init__(self, cog, user_id):
+        super().__init__(timeout=180)
+        self.cog = cog
+        self.user_id = user_id
+
+    @discord.ui.button(label="🗑 ลบออก", style=discord.ButtonStyle.danger)
+    async def remove(self, interaction, button):
+        guild_id = str(interaction.guild.id)
+        del self.cog.data[guild_id]["users"][self.user_id]
         self.cog.save_data()
 
         await interaction.response.edit_message(
-            embed=discord.Embed(description="🍇 บันทึกเรียบร้อย"),
+            embed=discord.Embed(description="🥝 ลบออกจาก Whitelist แล้ว"),
+            view=MainView(self.cog)
+        )
+
+    @discord.ui.button(label="🍉 ยกเลิก", style=discord.ButtonStyle.secondary)
+    async def cancel(self, interaction, button):
+        await interaction.response.edit_message(
+            embed=main_embed(),
+            view=MainView(self.cog)
+        )
+
+
+# ================= ROLE LIST =================
+
+class RoleListView(discord.ui.View):
+    def __init__(self, cog):
+        super().__init__(timeout=180)
+        self.cog = cog
+
+        guild_data = cog.data.get(str(cog.bot.guilds[0].id), {})
+        roles = guild_data.get("roles", {})
+
+        options = []
+        for rid in roles:
+            options.append(discord.SelectOption(label=f"Role {rid}", value=rid))
+
+        if options:
+            self.add_item(RoleSelectDropdown(cog, options))
+        else:
+            self.add_item(discord.ui.Button(label="🍎ไม่มีข้อมูล", disabled=True))
+
+        self.add_item(CancelButton(cog))
+
+
+class RoleSelectDropdown(discord.ui.Select):
+    def __init__(self, cog, options):
+        super().__init__(placeholder="🌽เลือกบทบาท", options=options)
+        self.cog = cog
+
+    async def callback(self, interaction):
+        guild_id = str(interaction.guild.id)
+        data = self.cog.data[guild_id]["roles"][self.values[0]]
+        role = interaction.guild.get_role(int(self.values[0]))
+
+        embed = discord.Embed(
+            title=f"🛡 {role.name}",
+            color=role.color
+        )
+        embed.add_field(name="🥕สิทธิ์ที่ได้รับ", value=format_permissions(data))
+
+        await interaction.response.edit_message(
+            embed=embed,
+            view=RemoveRoleView(self.cog, self.values[0])
+        )
+
+
+class RemoveRoleView(discord.ui.View):
+    def __init__(self, cog, role_id):
+        super().__init__(timeout=180)
+        self.cog = cog
+        self.role_id = role_id
+
+    @discord.ui.button(label="🗑 ลบออก", style=discord.ButtonStyle.danger)
+    async def remove(self, interaction, button):
+        guild_id = str(interaction.guild.id)
+        del self.cog.data[guild_id]["roles"][self.role_id]
+        self.cog.save_data()
+
+        await interaction.response.edit_message(
+            embed=discord.Embed(description="🥬 ลบออกจาก Whitelist แล้ว"),
+            view=MainView(self.cog)
+        )
+
+    @discord.ui.button(label="🌶️ ยกเลิก", style=discord.ButtonStyle.secondary)
+    async def cancel(self, interaction, button):
+        await interaction.response.edit_message(
+            embed=main_embed(),
+            view=MainView(self.cog)
+        )
+
+
+class CancelButton(discord.ui.Button):
+    def __init__(self, cog):
+        super().__init__(label="🌶️ ยกเลิก", style=discord.ButtonStyle.secondary)
+        self.cog = cog
+
+    async def callback(self, interaction):
+        await interaction.response.edit_message(
+            embed=main_embed(),
             view=MainView(self.cog)
         )
 
