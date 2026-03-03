@@ -43,11 +43,6 @@ async def on_message(message):
         return
     await bot.process_commands(message)
 
-
-# =========================================================
-# 🔥 LOG SYSTEM
-# =========================================================
-
 @bot.event
 async def on_app_command_completion(interaction: discord.Interaction, command):
 
@@ -93,11 +88,6 @@ async def on_app_command_completion(interaction: discord.Interaction, command):
 
     if log_channel:
         await log_channel.send(embed=embed)
-
-
-# =========================================================
-# เริ่มระบบฐานข้อมูล
-# =========================================================
 
 init_db()
 
