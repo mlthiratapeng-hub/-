@@ -7,6 +7,5 @@ pillow
 openai
 python-dotenv
 pytz
-discord.py
 wavelink
 yt-dlp
