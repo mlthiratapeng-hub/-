@@ -84,7 +84,6 @@ log_channel = bot.get_channel(LOG_CHANNEL_ID)
 if log_channel:
 await log_channel.send(embed=embed)
 
-
 init_db()
 
 bot.run(os.getenv("TOKEN"))
