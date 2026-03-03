@@ -2,198 +2,186 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 
-whitelist_data = {}
+# =========================
+# เก็บข้อมูล
+# =========================
+
+permissions = {}
+# โครงสร้าง
+# permissions[guild_id] = {
+#     "users": {user_id: {"anti_spam": True}},
+#     "roles": {role_id: {"anti_spam": True}}
+# }
+
+anti_spam_status = {}  # เปิด/ปิดระบบต่อเซิร์ฟเวอร์
 
 
-def ensure_guild(guild_id: int):
-    whitelist_data.setdefault(guild_id, {"users": {}, "roles": {}})
+def get_guild_data(guild_id):
+    if guild_id not in permissions:
+        permissions[guild_id] = {"users": {}, "roles": {}}
+    return permissions[guild_id]
 
 
-def check_bypass(guild_id: int, member: discord.Member, system: str):
-    ensure_guild(guild_id)
+# =========================
+# VIEW เลือก User / Role
+# =========================
 
-    # เช็ค user
-    user_data = whitelist_data[guild_id]["users"].get(member.id)
-    if user_data and user_data.get(system):
-        return True
-
-    # เช็ค role
-    for role in member.roles:
-        role_data = whitelist_data[guild_id]["roles"].get(role.id)
-        if role_data and role_data.get(system):
-            return True
-
-    return False
-
-
-# ================= VIEW =================
-
-class MainView(discord.ui.View):
+class TargetSelect(discord.ui.View):
     def __init__(self, guild_id):
         super().__init__(timeout=120)
         self.guild_id = guild_id
 
-    @discord.ui.button(label="⚙ จัดการ Whitelist", style=discord.ButtonStyle.secondary)
-    async def manage(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.edit_message(
-            embed=discord.Embed(
-                title="⚙ เลือกประเภท",
-                description="เลือกว่าจะจัดการผู้ใช้หรือยศ",
-                color=discord.Color.dark_gray()
-            ),
-            view=TypeSelectView(self.guild_id)
-        )
+    @discord.ui.button(label="เลือกผู้ใช้", style=discord.ButtonStyle.secondary)
+    async def user_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(UserModal(self.guild_id))
 
-    @discord.ui.button(label="📋 ดูรายการ", style=discord.ButtonStyle.secondary)
-    async def view_list(self, interaction: discord.Interaction, button: discord.ui.Button):
-        ensure_guild(self.guild_id)
-        data = whitelist_data[self.guild_id]
+    @discord.ui.button(label="🍄‍🟫เลือกยศ", style=discord.ButtonStyle.secondary)
+    async def role_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(RoleModal(self.guild_id))
 
-        desc = ""
 
-        for uid in data["users"]:
-            desc += f"👤 <@{uid}>\n"
+# =========================
+# MODAL ผู้ใช้
+# =========================
 
-        for rid in data["roles"]:
-            desc += f"🛡 <@&{rid}>\n"
+class UserModal(discord.ui.Modal, title="ใส่ไอดีผู้ใช้"):
+    user_id = discord.ui.TextInput(label="User ID", placeholder="ใส่ไอดีผู้ใช้")
 
-        if not desc:
-            desc = "ไม่มีข้อมูล"
+    def __init__(self, guild_id):
+        super().__init__()
+        self.guild_id = guild_id
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            user_id = int(self.user_id.value)
+        except:
+            return await interaction.response.send_message("🍎 ไอดีไม่ถูกต้อง", ephemeral=True)
+
+        member = interaction.guild.get_member(user_id)
+        if not member:
+            return await interaction.response.send_message("🍓 ไม่พบผู้ใช้", ephemeral=True)
 
         embed = discord.Embed(
-            title="📋 รายชื่อ Whitelist",
-            description=desc,
+            title="จัดการผู้ใช้",
+            description=f"กำลังตั้งค่าให้ {member.mention}",
             color=discord.Color.dark_gray()
         )
+        embed.set_thumbnail(url=member.display_avatar.url)
 
-        await interaction.response.edit_message(embed=embed, view=self)
+        await interaction.response.send_message(
+            embed=embed,
+            view=PermissionView(self.guild_id, "users", member.id),
+            ephemeral=True
+        )
 
 
-class TypeSelectView(discord.ui.View):
+# =========================
+# MODAL ยศ
+# =========================
+
+class RoleModal(discord.ui.Modal, title="ใส่ไอดียศ"):
+    role_id = discord.ui.TextInput(label="Role ID", placeholder="ใส่ไอดียศ")
+
     def __init__(self, guild_id):
-        super().__init__(timeout=60)
+        super().__init__()
         self.guild_id = guild_id
 
-    @discord.ui.button(label="👤 ผู้ใช้", style=discord.ButtonStyle.secondary)
-    async def user_select(self, interaction: discord.Interaction, button: discord.ui.Button):
-        view = TargetSelectView(self.guild_id, "users")
-        await interaction.response.edit_message(view=view)
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            role_id = int(self.role_id.value)
+        except:
+            return await interaction.response.send_message("🍎 ไอดีไม่ถูกต้อง", ephemeral=True)
 
-    @discord.ui.button(label="🛡 ยศ", style=discord.ButtonStyle.secondary)
-    async def role_select(self, interaction: discord.Interaction, button: discord.ui.Button):
-        view = TargetSelectView(self.guild_id, "roles")
-        await interaction.response.edit_message(view=view)
+        role = interaction.guild.get_role(role_id)
+        if not role:
+            return await interaction.response.send_message("🌶️ ไม่พบยศ", ephemeral=True)
 
+        embed = discord.Embed(
+            title="🥕จัดการยศ",
+            description=f"🍃กำลังตั้งค่าให้ {role.mention}",
+            color=discord.Color.dark_gray()
+        )
+        embed.set_thumbnail(url=interaction.guild.me.display_avatar.url)
 
-class TargetSelectView(discord.ui.View):
-    def __init__(self, guild_id, mode):
-        super().__init__(timeout=60)
-        self.guild_id = guild_id
-        self.mode = mode
-
-        if mode == "users":
-            select = discord.ui.UserSelect(min_values=1, max_values=1)
-        else:
-            select = discord.ui.RoleSelect(min_values=1, max_values=1)
-
-        select.callback = self.callback
-        self.add_item(select)
-
-    async def callback(self, interaction: discord.Interaction):
-        target_id = int(interaction.data["values"][0])
-        ensure_guild(self.guild_id)
-
-        view = PermissionSelectView(self.guild_id, self.mode, target_id)
-
-        if self.mode == "users":
-            member = interaction.guild.get_member(target_id)
-            embed = discord.Embed(
-                title="👤 โปรไฟล์ผู้ใช้",
-                description=member.mention,
-                color=discord.Color.dark_gray()
-            )
-            embed.set_thumbnail(url=member.display_avatar.url)
-        else:
-            role = interaction.guild.get_role(target_id)
-            embed = discord.Embed(
-                title="🛡 ข้อมูลยศ",
-                description=role.mention,
-                color=discord.Color.dark_gray()
-            )
-
-        await interaction.response.edit_message(embed=embed, view=view)
+        await interaction.response.send_message(
+            embed=embed,
+            view=PermissionView(self.guild_id, "roles", role.id),
+            ephemeral=True
+        )
 
 
-class PermissionSelectView(discord.ui.View):
-    def __init__(self, guild_id, mode, target_id):
+# =========================
+# VIEW ตั้งค่าสิทธิ์
+# =========================
+
+class PermissionView(discord.ui.View):
+    def __init__(self, guild_id, target_type, target_id):
         super().__init__(timeout=120)
         self.guild_id = guild_id
-        self.mode = mode
+        self.target_type = target_type
         self.target_id = target_id
 
-    @discord.ui.button(label="🔗 Anti-Link", style=discord.ButtonStyle.secondary)
-    async def anti_link(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.toggle("anti_link")
-        await interaction.response.defer()
+    @discord.ui.button(label="อนุญาต Anti-Spam", style=discord.ButtonStyle.secondary)
+    async def allow_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        data = get_guild_data(self.guild_id)
+        if self.target_id not in data[self.target_type]:
+            data[self.target_type][self.target_id] = {}
+        data[self.target_type][self.target_id]["anti_spam"] = True
 
-    @discord.ui.button(label="🛡 Anti-Spam", style=discord.ButtonStyle.secondary)
-    async def anti_spam(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.toggle("anti_spam")
-        await interaction.response.defer()
+        await interaction.response.edit_message(content="🥝 อนุญาตแล้ว", view=self)
 
-    @discord.ui.button(label="💣 Anti-Nuke", style=discord.ButtonStyle.secondary)
-    async def anti_nuke(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.toggle("anti_nuke")
-        await interaction.response.defer()
+    @discord.ui.button(label="ลบออกจากระบบ", style=discord.ButtonStyle.secondary)
+    async def remove_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        data = get_guild_data(self.guild_id)
+        if self.target_id in data[self.target_type]:
+            del data[self.target_type][self.target_id]
 
-    @discord.ui.button(label="📂 บันทึก", style=discord.ButtonStyle.success)
-    async def save(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.edit_message(content="บันทึกเรียบร้อย", view=None)
+        await interaction.response.edit_message(content="🍃 ลบออกแล้ว", view=None)
 
-    @discord.ui.button(label="🗑 ลบข้อมูล", style=discord.ButtonStyle.danger)
-    async def delete(self, interaction: discord.Interaction, button: discord.ui.Button):
-        ensure_guild(self.guild_id)
-        whitelist_data[self.guild_id][self.mode].pop(self.target_id, None)
-        await interaction.response.edit_message(content="ลบข้อมูลเรียบร้อย", view=None)
-
-    def toggle(self, system):
-        ensure_guild(self.guild_id)
-        target_dict = whitelist_data[self.guild_id][self.mode]
-        target_dict.setdefault(self.target_id, {
-            "anti_link": False,
-            "anti_spam": False,
-            "anti_nuke": False
-        })
-        target_dict[self.target_id][system] = not target_dict[self.target_id][system]
+    @discord.ui.button(label="ย้อนกลับ", style=discord.ButtonStyle.secondary)
+    async def back_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(
+            content="🍇เลือกใหม่",
+            embed=None,
+            view=TargetSelect(self.guild_id)
+        )
 
 
-class Whitelist(commands.Cog):
+# =========================
+# COG
+# =========================
+
+class Virus(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="whitelist", description="จัดการระบบ whitelist")
-    async def whitelist(self, interaction: discord.Interaction):
+    @app_commands.command(name="anti", description="📁จัดการระบบ Anti-Spam")
+    @app_commands.checks.has_permissions(administrator=True)  # จำกัดแอดมินเท่านั้น
+    async def anti(self, interaction: discord.Interaction):
 
-        if not interaction.user.guild_permissions.administrator:
-            return await interaction.response.send_message(
-                "🍅 ใช้ได้เฉพาะแอดมิน",
-                ephemeral=True
-            )
+        guild_id = interaction.guild.id
 
-        ensure_guild(interaction.guild.id)
+        if guild_id not in anti_spam_status:
+            anti_spam_status[guild_id] = False
 
         embed = discord.Embed(
-            title="📁 ระบบจัดการ Whitelist",
-            description="กดปุ่มด้านล่างเพื่อจัดการ",
+            title="ระบบ Anti-Spam",
+            description="🕸️เลือกจัดการด้านล่าง",
             color=discord.Color.dark_gray()
+        )
+
+        embed.add_field(
+            name="สถานะปัจจุบัน",
+            value="🍈 เปิด" if anti_spam_status[guild_id] else "🍅 ปิด",
+            inline=False
         )
 
         await interaction.response.send_message(
             embed=embed,
-            view=MainView(interaction.guild.id),
+            view=TargetSelect(guild_id),
             ephemeral=True
         )
 
 
 async def setup(bot):
-    await bot.add_cog(Whitelist(bot))
+    await bot.add_cog(Virus(bot))
