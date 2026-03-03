@@ -3,8 +3,6 @@ from discord.ext import commands
 import os
 from database import init_db
 
-====== ตั้งค่า ======
-
 ALLOWED_GUILD_ID = 1476624073990738022
 
 intents = discord.Intents.all()
@@ -22,8 +20,7 @@ for file in os.listdir("./cogs"):
 if file.endswith(".py"):
 await self.load_extension(f"cogs.{file[:-3]}")
 print(f"Loaded {file}")
-
-# 🔥 Sync แบบ Global (ทุกเซิร์ฟ)    
+  
 synced = await self.tree.sync()    
 print(f"Synced {len(synced)} global commands")
 
