@@ -16,11 +16,9 @@ class MyBot(commands.Bot):
         )
 
     async def setup_hook(self):
-        # โหลดทุก cog
-        for file in os.listdir("./cogs"):
-            if file.endswith(".py"):
-                await self.load_extension(f"cogs.{file[:-3]}")
-                print(f"Loaded {file}")
+        # 🔥 โหลดเฉพาะ whitelist.py เท่านั้น
+        await self.load_extension("cogs.whitelist")
+        print("Loaded whitelist.py")
 
         # 🔥 Sync แบบ Global (ทุกเซิร์ฟ)
         synced = await self.tree.sync()
