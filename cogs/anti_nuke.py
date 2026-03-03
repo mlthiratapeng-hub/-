@@ -3,7 +3,9 @@ from discord.ext import commands
 from discord import app_commands
 import time
 from collections import defaultdict
-from database import is_whitelisted
+
+# ✅ เชื่อมกับ whitelist ใหม่
+from cogs.whitelist import check_bypass
 
 anti_nuke_status = {}
 
@@ -59,7 +61,7 @@ class AntiNuke(commands.Cog):
         self.bot = bot
         self.action_log = defaultdict(list)
 
-    @app_commands.command(name="anti-nuke", description="ตั้งค่าระบบป้องกันการลบห้องรัว")
+    @app_commands.command(name="anti-nuke", description="ตั้งค่าระบบป้องกันนูค")
     async def anti_nuke(self, interaction: discord.Interaction):
 
         guild_id = interaction.guild.id
@@ -103,7 +105,12 @@ class AntiNuke(commands.Cog):
         if user.bot:
             return
 
-        if is_whitelisted(user.id):
+        member = guild.get_member(user.id)
+        if not member:
+            return
+
+        # ✅ เช็ค whitelist ใหม่
+        if check_bypass(guild_id, member, "anti_nuke"):
             return
 
         now = time.time()
@@ -117,9 +124,7 @@ class AntiNuke(commands.Cog):
         # ลบเกิน 3 ห้องใน 5 วิ = แบน
         if len(self.action_log[user.id]) >= 3:
             try:
-                member = guild.get_member(user.id)
-                if member:
-                    await member.ban(reason="Anti-Nuke: ลบห้องเร็วเกินกำหนด")
+                await member.ban(reason="Anti-Nuke: ลบห้องเร็วเกินกำหนด")
             except Exception as e:
                 print("ANTI-NUKE BAN ERROR:", e)
 
