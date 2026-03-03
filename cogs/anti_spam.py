@@ -1,10 +1,25 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
+import asyncio
+import time
 
+# ===============================
 # เก็บสถานะเปิด/ปิด ต่อเซิร์ฟเวอร์
+# ===============================
 anti_spam_status = {}
 
+# เก็บข้อความของแต่ละ user
+user_messages = {}
+
+# ตั้งค่าการตรวจ
+SPAM_LIMIT = 5          # ส่งกี่ข้อความ
+SPAM_TIME = 5           # ภายในกี่วินาที
+
+
+# ===============================
+# ปุ่มเปิด/ปิดระบบ
+# ===============================
 class AntiSpamToggleView(discord.ui.View):
     def __init__(self, guild_id):
         super().__init__(timeout=60)
@@ -33,6 +48,9 @@ class AntiSpamToggleView(discord.ui.View):
         await interaction.response.edit_message(embed=embed, view=None)
 
 
+# ===============================
+# เมนูหลัก
+# ===============================
 class AntiSpamMainView(discord.ui.View):
     def __init__(self, guild_id):
         super().__init__(timeout=60)
@@ -52,10 +70,14 @@ class AntiSpamMainView(discord.ui.View):
         )
 
 
+# ===============================
+# Cog หลัก
+# ===============================
 class AntiSpam(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    # ===== Slash Command =====
     @app_commands.command(name="anti-spam", description="ตั้งค่าระบบป้องกันสแปม")
     async def anti_spam(self, interaction: discord.Interaction):
 
@@ -82,6 +104,55 @@ class AntiSpam(commands.Cog):
             ephemeral=True
         )
 
+    # ===== ระบบตรวจสแปมจริง =====
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message):
 
+        if message.author.bot:
+            return
+
+        if not message.guild:
+            return
+
+        guild_id = message.guild.id
+
+        if not anti_spam_status.get(guild_id, False):
+            return
+
+        user_id = message.author.id
+        now = time.time()
+
+        if user_id not in user_messages:
+            user_messages[user_id] = []
+
+        user_messages[user_id].append(now)
+
+        # ลบข้อความเก่าที่เกินเวลา
+        user_messages[user_id] = [
+            t for t in user_messages[user_id]
+            if now - t <= SPAM_TIME
+        ]
+
+        # ถ้าเกิน limit = สแปม
+        if len(user_messages[user_id]) >= SPAM_LIMIT:
+            try:
+                await message.delete()
+
+                warning = await message.channel.send(
+                    f"{message.author.mention} ⚠️ หยุดสแปมได้แล้ว!"
+                )
+
+                await asyncio.sleep(3)
+                await warning.delete()
+
+            except:
+                pass
+
+            user_messages[user_id] = []
+
+
+# ===============================
+# โหลด Cog
+# ===============================
 async def setup(bot):
     await bot.add_cog(AntiSpam(bot))
