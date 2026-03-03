@@ -5,7 +5,7 @@ from database import init_db
 
 ====== ตั้งค่า ======
 
-ALLOWED_GUILD_ID = 1476624073990738022  # (ยังเก็บไว้ เผื่อใช้ใน cog)
+ALLOWED_GUILD_ID = 1476624073990738022
 
 intents = discord.Intents.all()
 
@@ -38,12 +38,6 @@ async def on_message(message):
 if message.author.bot:
 return
 await bot.process_commands(message)
-
-=========================================================
-
-🔥 LOG SYSTEM
-
-=========================================================
 
 LOG_CHANNEL_ID = 1476975551091572746
 
@@ -93,9 +87,6 @@ log_channel = bot.get_channel(LOG_CHANNEL_ID)
 if log_channel:
 await log_channel.send(embed=embed)
 
-=========================================================
-
-เริ่มระบบฐานข้อมูล
 
 init_db()
 
