@@ -53,7 +53,8 @@ class Help(commands.Cog):
                 "`/ban` แบนสมาชิก\n"
                 "`/delete` ลบข้อความตามจำนวน\n"
                 "`/rank` ให้ยศ\n"
-                "`/release` ปลดยศ"
+                "`/release` ปลดยศ\n"
+                "`/out_of_time` หมดเวลาสมาชิก"
             ),
             inline=False
         )
