@@ -3,11 +3,8 @@ from discord.ext import commands
 from discord import app_commands
 import re
 
-# เก็บโหมดของแต่ละเซิร์ฟเวอร์
-# 0 = ปิด
-# 1 = กันลิงก์เชิญ Discord
-# 2 = กันลิงก์ภายนอก (ยกเว้น Discord invite)
-# 3 = กันทุกลิงก์
+from cogs.whitelist import whitelist_data  # ดึง whitelist มาใช้
+
 anti_link_mode = {}
 
 class AntiLinkModeView(discord.ui.View):
@@ -31,7 +28,7 @@ class AntiLinkModeView(discord.ui.View):
     @discord.ui.button(label="2️⃣ กันลิงก์ภายนอก", style=discord.ButtonStyle.success)
     async def external_only(self, interaction: discord.Interaction, button: discord.ui.Button):
         anti_link_mode[self.guild_id] = 2
-        await self.update_embed(interaction, "เปิดโหมด: กันลิงก์ภายนอก (อนุญาต Discord Invite)", discord.Color.green())
+        await self.update_embed(interaction, "เปิดโหมด: กันลิงก์ภายนอก", discord.Color.green())
 
     @discord.ui.button(label="3️⃣ กันทุกลิงก์", style=discord.ButtonStyle.danger)
     async def all_links(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -41,7 +38,7 @@ class AntiLinkModeView(discord.ui.View):
     @discord.ui.button(label="🍎 ปิดระบบ", style=discord.ButtonStyle.secondary)
     async def disable(self, interaction: discord.Interaction, button: discord.ui.Button):
         anti_link_mode[self.guild_id] = 0
-        await self.update_embed(interaction, "ปิดระบบป้องกันลิงก์แล้ว", discord.Color.greyple())
+        await self.update_embed(interaction, "ปิดระบบแล้ว", discord.Color.greyple())
 
 
 class AntiLink(commands.Cog):
@@ -49,36 +46,22 @@ class AntiLink(commands.Cog):
         self.bot = bot
         self.warnings = {}
 
-    # ===== Slash Command =====
     @app_commands.command(name="anti-link", description="ตั้งค่าระบบป้องกันลิงก์")
     async def anti_link(self, interaction: discord.Interaction):
 
         if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("🍅 คำสั่งนี้ใช้ได้เฉพาะแอดมิน", ephemeral=True)
-            return
+            return await interaction.response.send_message(
+                "🍎 ใช้ได้เฉพาะแอดมิน",
+                ephemeral=True
+            )
 
         guild_id = interaction.guild.id
-
-        if guild_id not in anti_link_mode:
-            anti_link_mode[guild_id] = 0
-
-        mode_text = {
-            0: "❌ ปิดอยู่",
-            1: "1️⃣ กันลิงก์เชิญดิส",
-            2: "2️⃣ กันลิงก์ภายนอก",
-            3: "3️⃣ กันทุกลิงก์"
-        }
+        anti_link_mode.setdefault(guild_id, 0)
 
         embed = discord.Embed(
             title="🔗 ตั้งค่าระบบป้องกันลิงก์",
-            description="เลือกโหมดที่ต้องการด้านล่าง",
+            description="เลือกโหมดด้านล่าง",
             color=discord.Color.blurple()
-        )
-
-        embed.add_field(
-            name="สถานะปัจจุบัน",
-            value=mode_text[anti_link_mode[guild_id]],
-            inline=False
         )
 
         await interaction.response.send_message(
@@ -87,7 +70,6 @@ class AntiLink(commands.Cog):
             ephemeral=True
         )
 
-    # ===== ระบบตรวจลิงก์ =====
     @commands.Cog.listener()
     async def on_message(self, message):
 
@@ -96,6 +78,10 @@ class AntiLink(commands.Cog):
 
         guild_id = message.guild.id
         mode = anti_link_mode.get(guild_id, 0)
+
+        # ✅ เช็ค whitelist ก่อน
+        if message.author.id in whitelist_data.get(guild_id, set()):
+            return
 
         if mode == 0:
             return
@@ -109,10 +95,8 @@ class AntiLink(commands.Cog):
 
         if mode == 1 and has_invite:
             violation = True
-
         elif mode == 2 and has_link and not has_invite:
             violation = True
-
         elif mode == 3 and has_link:
             violation = True
 
@@ -138,7 +122,7 @@ class AntiLink(commands.Cog):
         try:
             await message.author.ban(reason="ส่งลิงก์ครบ 3 ครั้ง")
             await message.channel.send(
-                f"🔨 {message.author.mention} ถูกแบน (ส่งลิงก์ครบ 3 ครั้ง)",
+                f"🔨 {message.author.mention} ถูกแบน (ครบ 3 ครั้ง)",
                 delete_after=5
             )
         except Exception as e:
