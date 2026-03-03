@@ -2,201 +2,103 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 
-# ==========================================
-# VIEW หลัก
-# ==========================================
+# เก็บ whitelist แยกตาม guild
+whitelist_data = {}
+
+def is_whitelisted(guild_id: int, user_id: int):
+    return user_id in whitelist_data.get(guild_id, set())
+
 
 class WhitelistMainView(discord.ui.View):
-    def __init__(self, cog):
-        super().__init__(timeout=300)
-        self.cog = cog
+    def __init__(self, guild_id):
+        super().__init__(timeout=120)
+        self.guild_id = guild_id
 
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("🍎 Admin เท่านั้น", ephemeral=True)
-            return False
-        return True
-
-    # =========================
-    # เพิ่ม / แก้ไข
-    # =========================
-    @discord.ui.button(label="🌶 เพิ่ม / แก้ไข", style=discord.ButtonStyle.green)
-    async def add_edit(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message(
-            "👤 เลือกผู้ใช้ที่ต้องการเพิ่มเข้า Whitelist",
-            view=WhitelistSelectUserView(self.cog),
-            ephemeral=True
+    @discord.ui.button(label="เพิ่ม", style=discord.ButtonStyle.secondary)
+    async def add_user(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(
+            content="เลือกผู้ใช้เพื่อเพิ่ม",
+            view=WhitelistSelectView(self.guild_id, True)
         )
 
-    # =========================
-    # ดูรายการ
-    # =========================
-    @discord.ui.button(label="📋 ดูรายการ", style=discord.ButtonStyle.blurple)
-    async def list_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="➖ ลบ", style=discord.ButtonStyle.secondary)
+    async def remove_user(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(
+            content="เลือกผู้ใช้เพื่อลบ",
+            view=WhitelistSelectView(self.guild_id, False)
+        )
 
-        if not self.cog.whitelist:
-            return await interaction.response.send_message(
-                "📄 ยังไม่มีใครอยู่ใน Whitelist",
-                ephemeral=True
-            )
+    @discord.ui.button(label="📋 รายชื่อ", style=discord.ButtonStyle.secondary)
+    async def list_users(self, interaction: discord.Interaction, button: discord.ui.Button):
 
-        users = "\n".join([f"<@{uid}>" for uid in self.cog.whitelist])
+        users = whitelist_data.get(self.guild_id, set())
+
+        if not users:
+            return await interaction.response.send_message("ไม่มี whitelist", ephemeral=True)
 
         embed = discord.Embed(
-            title="📄 รายชื่อ Whitelist",
-            description=users,
-            color=discord.Color.green()
+            title="📋 รายชื่อ Whitelist",
+            description="\n".join(f"<@{u}>" for u in users),
+            color=discord.Color.dark_gray()
         )
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    # =========================
-    # ปิด
-    # =========================
-    @discord.ui.button(label="🍒 ปิด", style=discord.ButtonStyle.gray)
-    async def close_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.edit_message(content="🔒 ปิดเมนูแล้ว", view=None)
+    @discord.ui.button(label="🍓 ปิด", style=discord.ButtonStyle.secondary)
+    async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(content="ปิดเมนูแล้ว", view=None)
 
 
-# ==========================================
-# VIEW เลือกผู้ใช้
-# ==========================================
+class WhitelistSelectView(discord.ui.View):
+    def __init__(self, guild_id, add_mode):
+        super().__init__(timeout=60)
+        self.guild_id = guild_id
+        self.add_mode = add_mode
 
-class WhitelistSelectUserView(discord.ui.View):
-    def __init__(self, cog):
-        super().__init__(timeout=300)
-        self.cog = cog
+        select = discord.ui.UserSelect(min_values=1, max_values=1)
+        select.callback = self.callback
+        self.add_item(select)
 
-    @discord.ui.user_select(placeholder="เลือกผู้ใช้...", min_values=1, max_values=1)
-    async def select_user(self, interaction: discord.Interaction, select: discord.ui.UserSelect):
+    async def callback(self, interaction: discord.Interaction):
 
-        user = select.values[0]
+        user_id = int(interaction.data["values"][0])
+        whitelist_data.setdefault(self.guild_id, set())
 
-        embed = discord.Embed(
-            title="👤 โปรไฟล์ผู้ใช้",
-            description=f"ต้องการเพิ่ม {user.mention} เข้า Whitelist หรือไม่?",
-            color=discord.Color.orange()
-        )
-        embed.set_thumbnail(url=user.display_avatar.url)
+        if self.add_mode:
+            whitelist_data[self.guild_id].add(user_id)
+            msg = f"🫛 เพิ่ม <@{user_id}> แล้ว"
+        else:
+            whitelist_data[self.guild_id].discard(user_id)
+            msg = f"🍎 ลบ <@{user_id}> แล้ว"
 
         await interaction.response.edit_message(
-            embed=embed,
-            view=WhitelistConfirmView(self.cog, user)
+            content=msg,
+            view=WhitelistMainView(self.guild_id)
         )
 
-    @discord.ui.button(label="⬅ ย้อนกลับ", style=discord.ButtonStyle.secondary)
-    async def back_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.edit_message(
-            content="📂 ระบบ Whitelist\nเลือกเมนูด้านล่าง",
-            embed=None,
-            view=WhitelistMainView(self.cog)
-        )
-
-
-# ==========================================
-# VIEW ยืนยันเพิ่ม/ลบ
-# ==========================================
-
-class WhitelistConfirmView(discord.ui.View):
-    def __init__(self, cog, user):
-        super().__init__(timeout=300)
-        self.cog = cog
-        self.user = user
-
-    # เพิ่ม
-    @discord.ui.button(label="🥭 เพิ่ม", style=discord.ButtonStyle.green)
-    async def confirm_add(self, interaction: discord.Interaction, button: discord.ui.Button):
-
-        self.cog.whitelist.add(self.user.id)
-
-        await interaction.response.edit_message(
-            content=f"🥕 เพิ่ม {self.user.mention} เข้า Whitelist แล้ว",
-            embed=None,
-            view=WhitelistAfterView(self.cog)
-        )
-
-    # ลบ
-    @discord.ui.button(label="🗑 ลบ", style=discord.ButtonStyle.red)
-    async def confirm_remove(self, interaction: discord.Interaction, button: discord.ui.Button):
-
-        self.cog.whitelist.discard(self.user.id)
-
-        await interaction.response.edit_message(
-            content=f"🌶️ ลบ {self.user.mention} ออกจาก Whitelist แล้ว",
-            embed=None,
-            view=WhitelistAfterView(self.cog)
-        )
-
-    # ยกเลิก
-    @discord.ui.button(label="🍅 ยกเลิก", style=discord.ButtonStyle.gray)
-    async def cancel_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.edit_message(
-            content="🍈 ยกเลิกแล้ว",
-            embed=None,
-            view=WhitelistMainView(self.cog)
-        )
-
-
-# ==========================================
-# VIEW หลังทำรายการเสร็จ
-# ==========================================
-
-class WhitelistAfterView(discord.ui.View):
-    def __init__(self, cog):
-        super().__init__(timeout=300)
-        self.cog = cog
-
-    @discord.ui.button(label="⬅ กลับหน้าแรก", style=discord.ButtonStyle.secondary)
-    async def back_main(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.edit_message(
-            content="📂 ระบบ Whitelist\nเลือกเมนูด้านล่าง",
-            view=WhitelistMainView(self.cog)
-        )
-
-
-# ==========================================
-# COG
-# ==========================================
 
 class Whitelist(commands.Cog):
-    def __init__(self, bot: commands.Bot):
+    def __init__(self, bot):
         self.bot = bot
-        self.whitelist = set()
 
-    # ==========================================
-    # Slash Command
-    # ==========================================
-    @app_commands.command(name="whitelist", description="ระบบจัดการ Whitelist")
+    @app_commands.command(name="whitelist", description="จัดการ whitelist")
     async def whitelist(self, interaction: discord.Interaction):
 
         if not interaction.user.guild_permissions.administrator:
             return await interaction.response.send_message(
-                "❌ Admin เท่านั้น",
+                "🥭 ใช้ได้เฉพาะแอดมิน",
                 ephemeral=True
             )
 
-        embed = discord.Embed(
-            title="📂 ระบบ Whitelist",
-            description="เลือกเมนูด้านล่าง",
-            color=discord.Color.purple()
-        )
+        guild_id = interaction.guild.id
+        whitelist_data.setdefault(guild_id, set())
 
         await interaction.response.send_message(
-            embed=embed,
-            view=WhitelistMainView(self),
+            "เมนู Whitelist",
+            view=WhitelistMainView(guild_id),
             ephemeral=True
         )
 
-    # ==========================================
-    # ใช้กับ anti-link / anti-spam / anti-nuke
-    # ==========================================
-    def is_whitelisted(self, user_id: int):
-        return user_id in self.whitelist
 
-
-# ==========================================
-# SETUP
-# ==========================================
-
-async def setup(bot: commands.Bot):
+async def setup(bot):
     await bot.add_cog(Whitelist(bot))
