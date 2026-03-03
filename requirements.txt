@@ -9,3 +9,4 @@ python-dotenv
 pytz
 wavelink
 yt-dlp
+discord.py
