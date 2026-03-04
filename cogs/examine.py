@@ -173,7 +173,7 @@ class LinkScan(commands.Cog):
     async def auto_update(self):
         await update_blacklist()
 
-    @app_commands.command(name="examine", description="เช็คลิ้งความปลอดภัย")
+    @app_commands.command(name="examine", description="เช็คลิ้งความปลอดภัยมาตรฐานgoogle")
     async def examine(self, interaction: discord.Interaction, url: str):
 
         await interaction.response.defer()
@@ -201,7 +201,7 @@ class LinkScan(commands.Cog):
 
         if url in blacklist_cache:
             score -= 50
-            findings.append("🚨 พบใน URLHaus Blacklist")
+            findings.append("🌶️ พบใน URLHaus Blacklist")
 
         ssl_ok, ssl_issue = check_ssl(domain)
         if not ssl_ok:
@@ -216,7 +216,7 @@ class LinkScan(commands.Cog):
         entropy = calculate_entropy(domain.replace(".", ""))
         if entropy > 4.0:
             score -= 10
-            findings.append("🧠 โดเมนสุ่มสูงผิดปกติ")
+            findings.append("🍲 โดเมนสุ่มสูงผิดปกติ")
 
         mal, sus = await check_virustotal(url)
         if mal > 0:
