@@ -1,5 +1,3 @@
-เอาanti-nuke.pyนี้ไปเพิ่มระบบเชื่อมกับprevent.py
-
 import discord
 from discord.ext import commands
 from discord import app_commands
