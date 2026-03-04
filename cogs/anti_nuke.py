@@ -4,6 +4,7 @@ from discord import app_commands
 import time
 from collections import defaultdict
 from database import is_whitelisted
+from prevent import is_prevent_enabled   # 👈 เชื่อม prevent
 
 anti_nuke_status = {}
 
@@ -85,8 +86,15 @@ class AntiNuke(commands.Cog):
         )
 
         embed.add_field(
-            name="สถานะปัจจุบัน",
+            name="สถานะ Anti-Nuke",
             value="📁 เปิดอยู่" if anti_nuke_status[guild_id] else "💢 ปิดอยู่",
+            inline=False
+        )
+
+        # 👇 แสดงสถานะ Prevent ด้วย
+        embed.add_field(
+            name="สถานะ Prevent",
+            value="🛡️ เปิดอยู่" if is_prevent_enabled(guild_id) else "❌ ปิดอยู่",
             inline=False
         )
 
@@ -104,7 +112,12 @@ class AntiNuke(commands.Cog):
         guild = channel.guild
         guild_id = guild.id
 
+        # ❌ ถ้า Anti-Nuke ปิด
         if not anti_nuke_status.get(guild_id, False):
+            return
+
+        # ❌ ถ้า Prevent ปิด
+        if not is_prevent_enabled(guild_id):
             return
 
         async for entry in guild.audit_logs(
@@ -119,6 +132,7 @@ class AntiNuke(commands.Cog):
         if user.bot:
             return
 
+        # 👇 เช็ค whitelist จาก database
         if is_whitelisted(user.id):
             return
 
