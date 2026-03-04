@@ -1,6 +1,7 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
+from prevent import is_prevent_enabled  # 👈 เชื่อมระบบ prevent
 
 anti_spam_status = {}
 
@@ -13,6 +14,16 @@ class AntiSpamToggleView(discord.ui.View):
 
     @discord.ui.button(label="เปิดระบบ", style=discord.ButtonStyle.success, emoji="📁")
     async def enable(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+        # ❌ ถ้า prevent ปิด ไม่ให้เปิด
+        if not is_prevent_enabled(self.guild_id):
+            embed = discord.Embed(
+                title="🛡️ ระบบป้องกันสแปม",
+                description="❌ ไม่สามารถเปิดได้ เพราะ Prevent ยังปิดอยู่",
+                color=discord.Color.red()
+            )
+            await interaction.response.edit_message(embed=embed, view=None)
+            return
 
         anti_spam_status[self.guild_id] = True
 
@@ -84,8 +95,15 @@ class AntiSpam(commands.Cog):
         )
 
         embed.add_field(
-            name="สถานะปัจจุบัน",
+            name="สถานะ Anti-Spam",
             value="📁 เปิดอยู่" if anti_spam_status[guild_id] else "💢 ปิดอยู่",
+            inline=False
+        )
+
+        # 👇 เพิ่มสถานะ Prevent
+        embed.add_field(
+            name="สถานะ Prevent",
+            value="🛡️ เปิดอยู่" if is_prevent_enabled(guild_id) else "❌ ปิดอยู่",
             inline=False
         )
 
