@@ -71,7 +71,7 @@ async def on_app_command_completion(interaction: discord.Interaction, command):
     )
 
     embed.add_field(
-        name="📍 ห้อง",
+        name="🍇 ห้อง",
         value=f"{channel.mention}",
         inline=False
     )
