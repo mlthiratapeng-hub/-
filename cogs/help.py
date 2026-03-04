@@ -40,7 +40,8 @@ class Help(commands.Cog):
                 "`/anti_nuke` ป้องกันยิงดิส\n"
                 "`/safety` ยืนยันตัวตนด้วยภาพ\n"
                 "`/verify_identity` ยืนยันตัวตนด้วยเลข\n"
-                "`/noplss` ป้องกันการตรวจสอบจากบอท"
+                "`/noplss` ป้องกันการตรวจสอบจากบอท\n"
+                "`/cyber` เช็คลิ้งแบบมาตรฐานgoogle"
             ),
             inline=False
         )
