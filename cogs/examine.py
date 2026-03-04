@@ -5,20 +5,12 @@ import aiohttp
 import os
 import socket
 import ssl
-import idna
-import re
-import whois
-import asyncio
-import base64
 import math
 import dns.resolver
+import asyncio
 
-from collections import Counter
 from urllib.parse import urlparse
-from datetime import datetime, timezone
-
-ALLOWED_GUILD_ID = 1476624073990738022
-ALLOWED_CHANNEL_ID = 1477830343774965851
+from datetime import datetime
 
 VT_API = os.getenv("VT_API")
 GSB_API = os.getenv("GSB_API")
@@ -67,7 +59,7 @@ async def expand_and_trace(url):
 
     return final_url, redirect_chain
 
-# ================= SSL CHECK (NO API) =================
+# ================= SSL CHECK =================
 
 def check_ssl(domain):
     try:
@@ -82,12 +74,12 @@ def check_ssl(domain):
     except Exception:
         return False, "SSL ผิดปกติหรือไม่มี"
 
-# ================= DNS CHECK (NO API) =================
+# ================= DNS CHECK =================
 
 def dns_scan(domain):
     issues = []
     try:
-        answers = dns.resolver.resolve(domain, 'A')
+        dns.resolver.resolve(domain, 'A')
     except:
         issues.append("ไม่มี A record")
 
@@ -181,16 +173,8 @@ class LinkScan(commands.Cog):
     async def auto_update(self):
         await update_blacklist()
 
-    @app_commands.command(name="examine", description="เช็คลิ้งมาตรฐานgoogle")
+    @app_commands.command(name="examine", description="เช็คลิ้งความปลอดภัย")
     async def examine(self, interaction: discord.Interaction, url: str):
-
-        if interaction.guild_id != ALLOWED_GUILD_ID:
-            await interaction.response.send_message("ใช้ได้เฉพาะเซิร์ฟเวอร์ที่กำหนด", ephemeral=True)
-            return
-
-        if interaction.channel_id != ALLOWED_CHANNEL_ID:
-            await interaction.response.send_message("ใช้ได้เฉพาะห้องที่กำหนด", ephemeral=True)
-            return
 
         await interaction.response.defer()
 
@@ -204,12 +188,10 @@ class LinkScan(commands.Cog):
         score = 100
         findings = []
 
-        # ---------- SHORTENER ----------
         if any(short in domain for short in SHORTENERS):
             score -= 10
             findings.append("🔗 ใช้ URL Shortener")
 
-        # ---------- REDIRECT ----------
         final_url, chain = await expand_and_trace(url)
 
         if len(chain) > 0:
@@ -217,30 +199,25 @@ class LinkScan(commands.Cog):
             if len(chain) >= 3:
                 score -= 15
 
-        # ---------- BLACKLIST ----------
         if url in blacklist_cache:
             score -= 50
             findings.append("🚨 พบใน URLHaus Blacklist")
 
-        # ---------- SSL ----------
         ssl_ok, ssl_issue = check_ssl(domain)
         if not ssl_ok:
             score -= 10
             findings.append(f"📁 {ssl_issue}")
 
-        # ---------- DNS ----------
         dns_issues = dns_scan(domain)
         if dns_issues:
             score -= 10
             findings.extend([f"🌐 {i}" for i in dns_issues])
 
-        # ---------- ENTROPY ----------
         entropy = calculate_entropy(domain.replace(".", ""))
         if entropy > 4.0:
             score -= 10
             findings.append("🧠 โดเมนสุ่มสูงผิดปกติ")
 
-        # ---------- VIRUSTOTAL ----------
         mal, sus = await check_virustotal(url)
         if mal > 0:
             score -= mal * 15
@@ -249,13 +226,11 @@ class LinkScan(commands.Cog):
             score -= sus * 8
             findings.append(f"⚠️ VirusTotal suspicious {sus}")
 
-        # ---------- GOOGLE SAFE ----------
         if await check_google_safe(url):
             score -= 40
             findings.append("🚨 Google Safe Browsing ระบุว่าอันตราย")
 
-        if score < 0:
-            score = 0
+        score = max(score, 0)
 
         if score >= 80:
             level = "🍇 ปลอดภัยสูง"
@@ -283,9 +258,7 @@ class LinkScan(commands.Cog):
 
         await interaction.followup.send(embed=embed)
 
+# โหลด Cog แบบ Global (ทุกเซิร์ฟ)
 
 async def setup(bot):
-    await bot.add_cog(
-        LinkScan(bot),
-        guild=discord.Object(id=ALLOWED_GUILD_ID)
-    )
+    await bot.add_cog(LinkScan(bot))
