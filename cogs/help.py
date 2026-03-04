@@ -67,7 +67,8 @@ class Help(commands.Cog):
                 "`/logall` ตรวจสอบการเคลื่อนไหว\n"
                 "`/setbackup` เซ็ตโครงสร้างเซิร์ฟ\n"
                 "`/restore` กู้คืนข้อมูลจาก backup\n"
-                "`/ticket` สร้างห้องแจ้งปัญหา"
+                "`/ticket` สร้างห้องแจ้งปัญหา\n"
+                "`/invitation_set` เช็คคำเชิญ"
             ),
             inline=False
         )
