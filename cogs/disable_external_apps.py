@@ -9,7 +9,7 @@ class DisableExternalApps(commands.Cog):
         self.bot = bot
 
     @app_commands.command(
-        name="disable_external_apps",
+        name="system",
         description="ปิดการใช้แอพภายนอกของทุกห้อง"
     )
     async def disable_external_apps(self, interaction: discord.Interaction):
