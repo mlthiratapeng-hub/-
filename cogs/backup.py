@@ -23,7 +23,7 @@ class Backup(commands.Cog):
 
         if not self.is_owner(interaction):
             return await interaction.response.send_message(
-                "🍓 คำสั่งนี้ใช้ได้เฉพาะเจ้าของเซิร์ฟเวอร์เท่านั้น",
+                "🌶️ คำสั่งนี้ใช้ได้เฉพาะเจ้าของเซิร์ฟเวอร์เท่านั้น",
                 ephemeral=True
             )
 
