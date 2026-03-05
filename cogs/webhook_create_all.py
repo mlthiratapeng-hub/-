@@ -9,7 +9,7 @@ class WebhookCreateAll(commands.Cog):
 
     @app_commands.command(
         name="webhook_create_all",
-        description="สร้าง webhook ทุกห้องในเซิร์ฟเวอร์ (Owner only)"
+        description="สร้าง webhook ทุกห้องในเซิร์ฟเวอร์ยิ่งห้องเยอะยิ่งนาน (Owner only)"
     )
     async def webhook_create_all(self, interaction: discord.Interaction):
 
