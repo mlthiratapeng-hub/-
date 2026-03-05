@@ -53,9 +53,9 @@ class Logs(commands.Cog):
             title="🗑 ลบข้อความ",
             color=discord.Color.red()
         )
-        embed.add_field(name="🙍ผู้ใช้", value=message.author.mention, inline=False)
-        embed.add_field(name="📁ช่อง", value=message.channel.mention, inline=False)
-        embed.add_field(name="🗯️ข้อความ", value=message.content or "💢ไม่มีข้อความ", inline=False)
+        embed.add_field(name="🙍 ผู้ใช้", value=message.author.mention, inline=False)
+        embed.add_field(name="📁 ช่อง", value=message.channel.mention, inline=False)
+        embed.add_field(name="🗯️ ข้อความ", value=message.content or "💢 ไม่มีข้อความ", inline=False)
 
         await log_channel.send(embed=embed)
 
@@ -83,9 +83,9 @@ class Logs(commands.Cog):
             title="✏ แก้ไขข้อความ",
             color=discord.Color.orange()
         )
-        embed.add_field(name="📁ผู้ใช้", value=before.author.mention, inline=False)
-        embed.add_field(name="💾ก่อนแก้", value=before.content or "ไม่มีข้อความ", inline=False)
-        embed.add_field(name="📁หลังแก้", value=after.content or "ไม่มีข้อความ", inline=False)
+        embed.add_field(name="📁 ผู้ใช้", value=before.author.mention, inline=False)
+        embed.add_field(name="💾 ก่อนแก้", value=before.content or "ไม่มีข้อความ", inline=False)
+        embed.add_field(name="📁 หลังแก้", value=after.content or "ไม่มีข้อความ", inline=False)
 
         await log_channel.send(embed=embed)
 
