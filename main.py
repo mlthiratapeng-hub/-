@@ -3,8 +3,11 @@ from discord.ext import commands
 import os
 from database import init_db
 
-# ====== ตั้งค่า ======
-ALLOWED_GUILD_ID = 1476624073990738022  # (ยังเก็บไว้ เผื่อใช้ใน cog)
+# ===== สร้าง Database ก่อน =====
+init_db()
+
+# ===== ตั้งค่า =====
+ALLOWED_GUILD_ID = 1476624073990738022
 LOG_CHANNEL_ID = 1476975551091572746
 
 intents = discord.Intents.all()
@@ -18,13 +21,14 @@ class MyBot(commands.Bot):
         )
 
     async def setup_hook(self):
-        # โหลดทุก cog
+
+        # โหลด cog ทั้งหมด
         for file in os.listdir("./cogs"):
             if file.endswith(".py"):
                 await self.load_extension(f"cogs.{file[:-3]}")
                 print(f"Loaded {file}")
 
-        # 🔥 Sync แบบ Global (ทุกเซิร์ฟ)
+        # Sync slash command
         synced = await self.tree.sync()
         print(f"Synced {len(synced)} global commands")
 
@@ -41,7 +45,13 @@ async def on_ready():
 async def on_message(message):
     if message.author.bot:
         return
+
     await bot.process_commands(message)
+
+
+# =========================
+# Command Log System
+# =========================
 
 @bot.event
 async def on_app_command_completion(interaction: discord.Interaction, command):
@@ -89,6 +99,6 @@ async def on_app_command_completion(interaction: discord.Interaction, command):
     if log_channel:
         await log_channel.send(embed=embed)
 
-init_db()
 
+# ===== Run Bot =====
 bot.run(os.getenv("TOKEN"))
