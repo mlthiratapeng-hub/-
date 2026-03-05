@@ -75,8 +75,8 @@ class PleaseTellThem(commands.Cog):
     async def please_tell_them(self, interaction: discord.Interaction):
 
         embed = discord.Embed(
-            title="👤 เลือกผู้ใช้",
-            description="🍜 เลือกผู้ใช้ด้านล่าง",
+            title="🕸️ เลือกผู้ใช้",
+            description="🍃 เลือกผู้ใช้ด้านล่าง",
             color=discord.Color.blue()
         )
 
