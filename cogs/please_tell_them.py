@@ -3,23 +3,42 @@ from discord.ext import commands
 from discord import app_commands
 
 
+class UserSelect(discord.ui.UserSelect):
+
+    def __init__(self):
+        super().__init__(placeholder="เลือกผู้ใช้ด้านล่าง", min_values=1, max_values=1)
+
+    async def callback(self, interaction: discord.Interaction):
+
+        user = self.values[0]
+
+        modal = TellModal(user)
+
+        await interaction.response.send_modal(modal)
+
+
+class SelectView(discord.ui.View):
+
+    def __init__(self):
+        super().__init__(timeout=60)
+
+        self.add_item(UserSelect())
+
+
 class TellModal(discord.ui.Modal, title="ฝากข้อความ"):
 
     fake_name = discord.ui.TextInput(
         label="ตัวตนปลอม",
-        placeholder="เช่น คนที่ลักหลับเธอ",
         max_length=100
     )
 
     message = discord.ui.TextInput(
         label="ข้อความ",
-        style=discord.TextStyle.paragraph,
-        max_length=500
+        style=discord.TextStyle.paragraph
     )
 
     hint = discord.ui.TextInput(
         label="คำใบ้",
-        placeholder="ใบ้",
         max_length=200
     )
 
@@ -34,29 +53,10 @@ class TellModal(discord.ui.Modal, title="ฝากข้อความ"):
             color=discord.Color.blurple()
         )
 
-        embed.add_field(
-            name="👤 ถึง",
-            value=self.target.mention,
-            inline=False
-        )
-
-        embed.add_field(
-            name="🕵️ ตัวตน",
-            value=self.fake_name.value,
-            inline=False
-        )
-
-        embed.add_field(
-            name="💬 ข้อความ",
-            value=self.message.value,
-            inline=False
-        )
-
-        embed.add_field(
-            name="🔎 คำใบ้",
-            value=self.hint.value,
-            inline=False
-        )
+        embed.add_field(name="👤 ถึง", value=self.target.mention, inline=False)
+        embed.add_field(name="🕵️ ตัวตน", value=self.fake_name.value, inline=False)
+        embed.add_field(name="💬 ข้อความ", value=self.message.value, inline=False)
+        embed.add_field(name="🔎 คำใบ้", value=self.hint.value, inline=False)
 
         embed.set_thumbnail(url=self.target.display_avatar.url)
 
@@ -71,12 +71,20 @@ class PleaseTellThem(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    @app_commands.command(name="please_tell_them", description="ฝากบอกข้อความ")
+    async def please_tell_them(self, interaction: discord.Interaction):
 
-    @app_commands.command(name="please_tell_them", description="ฝากบอกข้อความแบบไม่เปิดเผยตัว")
-    async def please_tell_them(self, interaction: discord.Interaction, target: discord.Member):
+        embed = discord.Embed(
+            title="👤 เลือกผู้ใช้",
+            description="🍜 เลือกผู้ใช้ด้านล่าง",
+            color=discord.Color.blue()
+        )
 
-        modal = TellModal(target)
-        await interaction.response.send_modal(modal)
+        await interaction.response.send_message(
+            embed=embed,
+            view=SelectView(),
+            ephemeral=True
+        )
 
 
 async def setup(bot):
