@@ -6,17 +6,21 @@ import os
 
 DATA_FILE = "log_channels.json"
 
+
 def load_data():
     if not os.path.exists(DATA_FILE):
         return {}
-    with open(DATA_FILE, "r") as f:
+    with open(DATA_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
 
+
 def save_data(data):
-    with open(DATA_FILE, "w") as f:
-        json.dump(data, f)
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4)
+
 
 class Logs(commands.Cog):
+
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.log_channels = load_data()
@@ -27,15 +31,15 @@ class Logs(commands.Cog):
     @app_commands.command(name="logall", description="ตั้งค่าห้องสำหรับเก็บ Log")
     async def logall(self, interaction: discord.Interaction, channel: discord.TextChannel):
 
-        if interaction.guild is None:
+        if not interaction.guild:
             return await interaction.response.send_message(
-                "💢 ใช้ได้เฉพาะในเซิร์ฟเวอร์",
+                "ใช้ได้เฉพาะในเซิร์ฟเวอร์",
                 ephemeral=True
             )
 
         if not interaction.user.guild_permissions.administrator:
             return await interaction.response.send_message(
-                "💢 Admin only",
+                "Admin only",
                 ephemeral=True
             )
 
@@ -45,7 +49,7 @@ class Logs(commands.Cog):
         save_data(self.log_channels)
 
         await interaction.response.send_message(
-            f"📁 ตั้งค่าห้อง Log เป็น {channel.mention} แล้ว",
+            f"ตั้งค่าห้อง Log เป็น {channel.mention} แล้ว",
             ephemeral=True
         )
 
@@ -55,10 +59,11 @@ class Logs(commands.Cog):
     @commands.Cog.listener()
     async def on_message_delete(self, message: discord.Message):
 
-        if message.guild is None:
+        if not message.guild:
             return
 
         guild_id = str(message.guild.id)
+
         channel_id = self.log_channels.get(guild_id)
 
         if not channel_id:
@@ -70,47 +75,13 @@ class Logs(commands.Cog):
             return
 
         embed = discord.Embed(
-            title="🗑 ลบข้อความ",
+            title="ลบข้อความ",
             color=discord.Color.red()
         )
 
-        embed.add_field(name="🙍ผู้ใช้", value=message.author.mention, inline=False)
-        embed.add_field(name="📁ช่อง", value=message.channel.mention, inline=False)
-        embed.add_field(name="🗯️ข้อความ", value=message.content or "💢ไม่มีข้อความ", inline=False)
-
-        await log_channel.send(embed=embed)
-
-    # =========================
-    # แก้ไขข้อความ
-    # =========================
-    @commands.Cog.listener()
-    async def on_message_edit(self, before: discord.Message, after: discord.Message):
-
-        if before.guild is None:
-            return
-
-        if before.content == after.content:
-            return
-
-        guild_id = str(before.guild.id)
-        channel_id = self.log_channels.get(guild_id)
-
-        if not channel_id:
-            return
-
-        log_channel = before.guild.get_channel(channel_id)
-
-        if not log_channel:
-            return
-
-        embed = discord.Embed(
-            title="✏ แก้ไขข้อความ",
-            color=discord.Color.orange()
-        )
-
-        embed.add_field(name="📁ผู้ใช้", value=before.author.mention, inline=False)
-        embed.add_field(name="💾ก่อนแก้", value=before.content or "ไม่มีข้อความ", inline=False)
-        embed.add_field(name="📁หลังแก้", value=after.content or "ไม่มีข้อความ", inline=False)
+        embed.add_field(name="ผู้ใช้", value=message.author.mention, inline=False)
+        embed.add_field(name="ช่อง", value=message.channel.mention, inline=False)
+        embed.add_field(name="ข้อความ", value=message.content or "ไม่มีข้อความ", inline=False)
 
         await log_channel.send(embed=embed)
 
@@ -121,6 +92,7 @@ class Logs(commands.Cog):
     async def on_member_join(self, member: discord.Member):
 
         guild_id = str(member.guild.id)
+
         channel_id = self.log_channels.get(guild_id)
 
         if not channel_id:
@@ -128,10 +100,8 @@ class Logs(commands.Cog):
 
         log_channel = member.guild.get_channel(channel_id)
 
-        if not log_channel:
-            return
-
-        await log_channel.send(f"🍲 {member.mention} เข้าร่วมเซิร์ฟเวอร์")
+        if log_channel:
+            await log_channel.send(f"{member.mention} เข้าร่วมเซิร์ฟเวอร์")
 
     # =========================
     # คนออก
@@ -140,6 +110,7 @@ class Logs(commands.Cog):
     async def on_member_remove(self, member: discord.Member):
 
         guild_id = str(member.guild.id)
+
         channel_id = self.log_channels.get(guild_id)
 
         if not channel_id:
@@ -147,10 +118,8 @@ class Logs(commands.Cog):
 
         log_channel = member.guild.get_channel(channel_id)
 
-        if not log_channel:
-            return
-
-        await log_channel.send(f"🍄 {member.name} ออกจากเซิร์ฟเวอร์")
+        if log_channel:
+            await log_channel.send(f"{member.name} ออกจากเซิร์ฟเวอร์")
 
 
 async def setup(bot: commands.Bot):
