@@ -79,7 +79,7 @@ class RankSystem(commands.Cog):
             await member.remove_roles(role)
 
             embed = discord.Embed(
-                title="⚠️ มีการปลดยศ",
+                title="🕸️ มีการปลดยศ",
                 color=discord.Color.red(),
                 timestamp=datetime.utcnow()
             )
