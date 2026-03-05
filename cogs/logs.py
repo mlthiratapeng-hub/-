@@ -1,11 +1,25 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
+import json
+import os
+
+DATA_FILE = "log_channels.json"
+
+def load_data():
+    if not os.path.exists(DATA_FILE):
+        return {}
+    with open(DATA_FILE, "r") as f:
+        return json.load(f)
+
+def save_data(data):
+    with open(DATA_FILE, "w") as f:
+        json.dump(data, f)
 
 class Logs(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.log_channels = {}  # เก็บ log channel ต่อเซิร์ฟเวอร์
+        self.log_channels = load_data()
 
     # =========================
     # /logall
@@ -25,7 +39,10 @@ class Logs(commands.Cog):
                 ephemeral=True
             )
 
-        self.log_channels[interaction.guild.id] = channel.id
+        guild_id = str(interaction.guild.id)
+
+        self.log_channels[guild_id] = channel.id
+        save_data(self.log_channels)
 
         await interaction.response.send_message(
             f"📁 ตั้งค่าห้อง Log เป็น {channel.mention} แล้ว",
@@ -41,11 +58,14 @@ class Logs(commands.Cog):
         if message.guild is None:
             return
 
-        channel_id = self.log_channels.get(message.guild.id)
+        guild_id = str(message.guild.id)
+        channel_id = self.log_channels.get(guild_id)
+
         if not channel_id:
             return
 
         log_channel = message.guild.get_channel(channel_id)
+
         if not log_channel:
             return
 
@@ -53,6 +73,7 @@ class Logs(commands.Cog):
             title="🗑 ลบข้อความ",
             color=discord.Color.red()
         )
+
         embed.add_field(name="🙍ผู้ใช้", value=message.author.mention, inline=False)
         embed.add_field(name="📁ช่อง", value=message.channel.mention, inline=False)
         embed.add_field(name="🗯️ข้อความ", value=message.content or "💢ไม่มีข้อความ", inline=False)
@@ -71,11 +92,14 @@ class Logs(commands.Cog):
         if before.content == after.content:
             return
 
-        channel_id = self.log_channels.get(before.guild.id)
+        guild_id = str(before.guild.id)
+        channel_id = self.log_channels.get(guild_id)
+
         if not channel_id:
             return
 
         log_channel = before.guild.get_channel(channel_id)
+
         if not log_channel:
             return
 
@@ -83,6 +107,7 @@ class Logs(commands.Cog):
             title="✏ แก้ไขข้อความ",
             color=discord.Color.orange()
         )
+
         embed.add_field(name="📁ผู้ใช้", value=before.author.mention, inline=False)
         embed.add_field(name="💾ก่อนแก้", value=before.content or "ไม่มีข้อความ", inline=False)
         embed.add_field(name="📁หลังแก้", value=after.content or "ไม่มีข้อความ", inline=False)
@@ -95,11 +120,14 @@ class Logs(commands.Cog):
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
 
-        channel_id = self.log_channels.get(member.guild.id)
+        guild_id = str(member.guild.id)
+        channel_id = self.log_channels.get(guild_id)
+
         if not channel_id:
             return
 
         log_channel = member.guild.get_channel(channel_id)
+
         if not log_channel:
             return
 
@@ -111,11 +139,14 @@ class Logs(commands.Cog):
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):
 
-        channel_id = self.log_channels.get(member.guild.id)
+        guild_id = str(member.guild.id)
+        channel_id = self.log_channels.get(guild_id)
+
         if not channel_id:
             return
 
         log_channel = member.guild.get_channel(channel_id)
+
         if not log_channel:
             return
 
