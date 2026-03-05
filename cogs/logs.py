@@ -46,7 +46,7 @@ class Logs(commands.Cog):
 
         if not interaction.user.guild_permissions.administrator:
             return await interaction.response.send_message(
-                "💢 Admin only",
+                "💢 Admin เท่านั้น",
                 ephemeral=True
             )
 
