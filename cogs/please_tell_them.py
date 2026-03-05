@@ -3,30 +3,31 @@ from discord.ext import commands
 from discord import app_commands
 
 
-class PleaseTellThem(commands.Cog):
+class TellModal(discord.ui.Modal, title="ฝากข้อความ"):
 
-    def __init__(self, bot):
-        self.bot = bot
-
-
-    @app_commands.command(
-        name="please_tell_them",
-        description="ฝากบอกข้อความกับใครบางคนโดยใช้ตัวตนปลอม"
+    fake_name = discord.ui.TextInput(
+        label="ตัวตนปลอม",
+        placeholder="เช่น คนที่ลักหลับเธอ",
+        max_length=100
     )
-    @app_commands.describe(
-        target="คนที่ต้องการฝากบอก",
-        fake_name="ชื่อตัวตนปลอมของคุณ",
-        message="ข้อความที่ต้องการบอก",
-        hint="คำใบ้ว่าเป็นใคร"
+
+    message = discord.ui.TextInput(
+        label="ข้อความ",
+        style=discord.TextStyle.paragraph,
+        max_length=500
     )
-    async def please_tell_them(
-        self,
-        interaction: discord.Interaction,
-        target: discord.Member,
-        fake_name: str,
-        message: str,
-        hint: str
-    ):
+
+    hint = discord.ui.TextInput(
+        label="คำใบ้",
+        placeholder="ใบ้",
+        max_length=200
+    )
+
+    def __init__(self, target):
+        super().__init__()
+        self.target = target
+
+    async def on_submit(self, interaction: discord.Interaction):
 
         embed = discord.Embed(
             title="📨 มีคนฝากข้อความมาถึงคุณ",
@@ -35,39 +36,47 @@ class PleaseTellThem(commands.Cog):
 
         embed.add_field(
             name="👤 ถึง",
-            value=target.mention,
+            value=self.target.mention,
             inline=False
         )
 
         embed.add_field(
             name="🕵️ ตัวตน",
-            value=fake_name,
+            value=self.fake_name.value,
             inline=False
         )
 
         embed.add_field(
             name="💬 ข้อความ",
-            value=message,
+            value=self.message.value,
             inline=False
         )
 
         embed.add_field(
-            name="🥡 คำใบ้",
-            value=hint,
+            name="🔎 คำใบ้",
+            value=self.hint.value,
             inline=False
         )
 
-        embed.set_thumbnail(url=target.display_avatar.url)
-
-        embed.set_footer(
-            text=f"ส่งผ่าน {interaction.guild.name}",
-            icon_url=interaction.guild.icon.url if interaction.guild.icon else None
-        )
+        embed.set_thumbnail(url=self.target.display_avatar.url)
 
         await interaction.response.send_message(
-            content=target.mention,
+            content=self.target.mention,
             embed=embed
         )
+
+
+class PleaseTellThem(commands.Cog):
+
+    def __init__(self, bot):
+        self.bot = bot
+
+
+    @app_commands.command(name="please_tell_them", description="ฝากบอกข้อความแบบไม่เปิดเผยตัว")
+    async def please_tell_them(self, interaction: discord.Interaction, target: discord.Member):
+
+        modal = TellModal(target)
+        await interaction.response.send_modal(modal)
 
 
 async def setup(bot):
