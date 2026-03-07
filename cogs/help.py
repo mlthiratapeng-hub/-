@@ -54,7 +54,12 @@ class Help(commands.Cog):
                 "`/ban` แบนสมาชิก\n"
                 "`/delete` ลบข้อความตามจำนวน\n"
                 "`/rank` ให้ยศ\n"
+                "`/wecome` เซ็ตติ้งwecomeตอนคนเข้า\n"
+                "`/goodbey` เซ็ตติ้งตอนคนออก\n"
+                "`/webhook` พวกคำสั่งนี้จะเป็นเกี่ยวกับwebhook\n"
+                "`/invitation_set` เซ็ตคำเชิญ\n"
                 "`/release` ปลดยศ\n"
+                "`/system` ปิดการใช้แอพภายนอกทุกห้อง\n"
                 "`/out_of_time` หมดเวลาสมาชิก"
             ),
             inline=False
@@ -67,8 +72,13 @@ class Help(commands.Cog):
                 "`/check_operation` เช็คการทำงานบอท\n"
                 "`/logall` ตรวจสอบการเคลื่อนไหว\n"
                 "`/setbackup` เซ็ตโครงสร้างเซิร์ฟ\n"
+                "`/please_tell_them` ฝากบอก\n"
                 "`/restore` กู้คืนข้อมูลจาก backup\n"
+                "`/server` บอกข้อมูลเซิฟเวอร์นี้\n"
                 "`/ticket` สร้างห้องแจ้งปัญหา\n"
+                "`/joice` ให้บอทจอยโดยไม่ออกไปไหนเลย\n"
+                "`/unavailable` ตั้งสถานะว่าไม่อยู่\n"
+                "`/specify_bot_user` สร้างห้องบอทคนเเละบอท\n"
                 "`/invitation_set` เช็คคำเชิญ"
             ),
             inline=False
