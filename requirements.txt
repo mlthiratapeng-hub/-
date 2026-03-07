@@ -13,4 +13,3 @@ discord.py
 gTTS
 PyNaCl
 ffmpeg-python
-psutil
