@@ -56,7 +56,7 @@ class VoiceControl(discord.ui.View):
 
         await interaction.response.send_message("🔒 ล็อคห้องแล้ว", ephemeral=True)
 
-    @discord.ui.button(label="Unlock", emoji="🔓", style=discord.ButtonStyle.green)
+    @discord.ui.button(label="unlock", emoji="🔓", style=discord.ButtonStyle.green)
     async def unlock(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         if interaction.user.id != self.owner_id:
@@ -81,7 +81,7 @@ class PrivateVoice(commands.Cog):
     # ------------------
     # slash command
     # ------------------
-    @app_commands.command(name="Create_a_voice", description="สร้างระบบห้องส่วนตัว")
+    @app_commands.command(name="create_a_voice", description="สร้างระบบห้องส่วนตัว")
     async def create_voice(self, interaction: discord.Interaction):
 
         if not interaction.user.guild_permissions.administrator:
