@@ -29,7 +29,6 @@ class WelcomeMenu(discord.ui.View):
 
     @discord.ui.button(label="⚙️ ตั้งค่าข้อความ", style=discord.ButtonStyle.gray)
     async def set_message(self, interaction: discord.Interaction, button: discord.ui.Button):
-
         await interaction.response.send_modal(WelcomeModal())
 
     @discord.ui.button(label="📢 เลือกห้อง", style=discord.ButtonStyle.gray)
@@ -41,6 +40,10 @@ class WelcomeMenu(discord.ui.View):
             view=view,
             ephemeral=True
         )
+
+    @discord.ui.button(label="🎞 ตั้งค่า GIF", style=discord.ButtonStyle.gray)
+    async def set_gif(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(GifModal())
 
     @discord.ui.button(label="🧪 เทสระบบ", style=discord.ButtonStyle.green)
     async def test(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -69,6 +72,9 @@ class WelcomeMenu(discord.ui.View):
 
         embed.set_thumbnail(url=fake.display_avatar.url)
 
+        if "gif" in data[guild_id]:
+            embed.set_image(url=data[guild_id]["gif"])
+
         await channel.send(embed=embed)
 
         await interaction.response.send_message("🍲 เทสสำเร็จ", ephemeral=True)
@@ -96,6 +102,31 @@ class WelcomeModal(discord.ui.Modal, title="ตั้งค่าข้อคว
 
         await interaction.response.send_message(
             "📁 บันทึกข้อความแล้ว",
+            ephemeral=True
+        )
+
+
+class GifModal(discord.ui.Modal, title="ตั้งค่า Welcome GIF"):
+
+    gif = discord.ui.TextInput(
+        label="ลิงก์ GIF",
+        placeholder="https://....gif",
+        max_length=500
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+
+        guild_id = str(interaction.guild.id)
+
+        if guild_id not in data:
+            data[guild_id] = {}
+
+        data[guild_id]["gif"] = self.gif.value
+
+        save_data(data)
+
+        await interaction.response.send_message(
+            "🎞 บันทึก GIF แล้ว",
             ephemeral=True
         )
 
@@ -197,6 +228,9 @@ class Welcome(commands.Cog):
         )
 
         embed.set_thumbnail(url=member.display_avatar.url)
+
+        if "gif" in data[guild_id]:
+            embed.set_image(url=data[guild_id]["gif"])
 
         await channel.send(embed=embed)
 
