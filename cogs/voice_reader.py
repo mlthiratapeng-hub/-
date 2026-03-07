@@ -2,73 +2,99 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from gtts import gTTS
-import asyncio
 import os
+import asyncio
+import uuid
+import re
 
-class VoiceReader(commands.Cog):
 
+class VoiceTTS(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.vc = None
-        self.queue = asyncio.Queue()
-        bot.loop.create_task(self.player())
+        self.voice_clients = {}
+        self.cooldown = {}
 
-    async def player(self):
-        await self.bot.wait_until_ready()
-
-        while True:
-            text = await self.queue.get()
-
-            tts = gTTS(text=text, lang="th")
-            tts.save("tts.mp3")
-
-            if self.vc and not self.vc.is_playing():
-                self.vc.play(discord.FFmpegPCMAudio("tts.mp3"))
-
-                while self.vc.is_playing():
-                    await asyncio.sleep(1)
-
-            os.remove("tts.mp3")
-
+    # -----------------------
+    # join voice
+    # -----------------------
     @app_commands.command(name="joic", description="ให้บอทเข้าห้องเสียงและอ่านแชท")
     async def joic(self, interaction: discord.Interaction):
 
+        await interaction.response.defer()
+
         if not interaction.user.voice:
-            await interaction.response.send_message(
-                "🥡 คุณต้องอยู่ในห้องเสียงก่อน",
-                ephemeral=True
-            )
+            await interaction.followup.send("🌶️ คุณไม่ได้อยู่ในห้องเสียง", ephemeral=True)
             return
 
         channel = interaction.user.voice.channel
 
-        if self.vc is None:
-            self.vc = await channel.connect()
+        vc = interaction.guild.voice_client
+
+        if vc:
+            await vc.move_to(channel)
         else:
-            await self.vc.move_to(channel)
+            vc = await channel.connect(self_deaf=True)
 
-        await interaction.response.send_message(
-            f"🍃 บอทเข้าห้องเสียงแล้ว: {channel.name}"
-        )
+        self.voice_clients[interaction.guild.id] = vc
 
+        await interaction.followup.send(f"🍇 เข้าห้อง **{channel.name}** แล้ว", ephemeral=True)
+
+    # -----------------------
+    # read message
+    # -----------------------
     @commands.Cog.listener()
     async def on_message(self, message):
 
         if message.author.bot:
             return
 
-        if self.vc and self.vc.is_connected():
+        if message.guild is None:
+            return
 
-            if message.content.startswith("/"):
+        if message.guild.id not in self.voice_clients:
+            return
+
+        vc = self.voice_clients[message.guild.id]
+
+        if not vc.is_connected():
+            return
+
+        # กันลิงก์
+        if "http://" in message.content or "https://" in message.content:
+            return
+
+        # กันสแปม
+        if message.author.id in self.cooldown:
+            if asyncio.get_event_loop().time() - self.cooldown[message.author.id] < 2:
                 return
 
-            text = message.content
+        self.cooldown[message.author.id] = asyncio.get_event_loop().time()
 
-            if len(text) > 200:
-                text = text[:200]
+        text = re.sub(r'[^\w\sก-๙]', '', message.content)
 
-            await self.queue.put(text)
+        if text == "":
+            return
+
+        try:
+
+            filename = f"tts_{uuid.uuid4()}.mp3"
+
+            tts = gTTS(text=text, lang="th")
+            tts.save(filename)
+
+            while vc.is_playing():
+                await asyncio.sleep(0.5)
+
+            vc.play(discord.FFmpegPCMAudio(filename))
+
+            while vc.is_playing():
+                await asyncio.sleep(0.5)
+
+            os.remove(filename)
+
+        except:
+            pass
 
 
 async def setup(bot):
-    await bot.add_cog(VoiceReader(bot))
+    await bot.add_cog(VoiceTTS(bot))
