@@ -65,7 +65,7 @@ class VoiceView(discord.ui.View):
     # -------------------------
     # ปลดล็อคห้อง
     # -------------------------
-    @discord.ui.button(label="Unlock", emoji="🔓", style=discord.ButtonStyle.green)
+    @discord.ui.button(label="unlock", emoji="🔓", style=discord.ButtonStyle.green)
     async def unlock_room(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         if interaction.user.id != self.owner_id:
@@ -90,7 +90,7 @@ class PrivateVoice(commands.Cog):
     # -------------------------
     # สร้าง trigger room
     # -------------------------
-    @app_commands.command(name="Create_a_voice", description="สร้างระบบห้องส่วนตัว")
+    @app_commands.command(name="create_a_voice", description="สร้างระบบห้องส่วนตัว")
     @app_commands.checks.has_permissions(administrator=True)
     async def create_voice(self, interaction: discord.Interaction):
 
