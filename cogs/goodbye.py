@@ -61,7 +61,7 @@ class GoodbyeMain(discord.ui.View):
         fake = interaction.user
 
         embed = discord.Embed(
-            title="👋😍🍃 Goodbye",
+            title="🍃 Goodbye",
             description=data[guild_id]["message"].replace("{user}", fake.mention),
             color=discord.Color.red()
         )
