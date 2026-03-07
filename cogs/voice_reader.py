@@ -17,7 +17,7 @@ class VoiceTTS(commands.Cog):
     # -----------------------
     # join voice
     # -----------------------
-    @app_commands.command(name="joic", description="ให้บอทเข้าห้องเสียงและอ่านแชท")
+    @app_commands.command(name="joic", description="ให้บอทออนห้อง")
     async def joic(self, interaction: discord.Interaction):
 
         await interaction.response.defer()
