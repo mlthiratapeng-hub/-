@@ -19,6 +19,7 @@ verified_users = set()
 # ======================
 
 def load_config():
+
     if not os.path.exists(CONFIG_FILE):
         return {}
 
@@ -27,6 +28,7 @@ def load_config():
 
 
 def save_config(data):
+
     with open(CONFIG_FILE, "w") as f:
         json.dump(data, f, indent=4)
 
@@ -38,13 +40,16 @@ config = load_config()
 # ======================
 
 def generate_text():
+
     length = random.randint(5, 6)
+
     chars = string.ascii_uppercase + string.digits
+
     return "".join(random.choice(chars) for _ in range(length))
 
 
 # ======================
-# CAPTCHA IMAGE (มีเส้น)
+# CAPTCHA IMAGE
 # ======================
 
 def generate_image(text):
@@ -52,21 +57,24 @@ def generate_image(text):
     width, height = 420, 170
 
     image = Image.new("RGB", (width, height), (255, 255, 255))
+
     draw = ImageDraw.Draw(image)
 
     try:
         font = ImageFont.truetype("arial.ttf", 80)
+
     except:
+
         font = ImageFont.load_default()
 
     spacing = width // (len(text) + 1)
 
     char_boxes = []
 
-    # วาดตัวอักษร
     for i, char in enumerate(text):
 
         x = spacing * (i + 1)
+
         y = random.randint(65, 85)
 
         draw.text(
@@ -80,60 +88,56 @@ def generate_image(text):
         )
 
         bbox = draw.textbbox((x, y), char, font=font, anchor="mm")
+
         char_boxes.append(bbox)
 
-    # เส้นตัดตัวอักษร
+    # เส้นทับตัวอักษร
+
     chosen_boxes = random.sample(char_boxes, min(random.randint(2, 3), len(char_boxes)))
 
     for box in chosen_boxes:
 
         x1, y1, x2, y2 = box
+
         height_box = y2 - y1
 
         start_y = y2 - int(height_box * random.uniform(0.35, 0.45))
+
         end_y = start_y + random.randint(3, 8)
 
         draw.line(
             (x1 - 5, start_y, x2 + 5, end_y),
-            fill=(
-                random.randint(60, 100),
-                random.randint(60, 100),
-                random.randint(60, 100)
-            ),
-            width=random.randint(4, 8)
+            fill=(random.randint(60,100),
+                  random.randint(60,100),
+                  random.randint(60,100)),
+            width=random.randint(4,8)
         )
 
     # เส้นมั่ว
+
     for _ in range(random.randint(5, 8)):
 
         draw.line(
-            (
-                random.randint(0, width),
-                random.randint(0, height),
-                random.randint(0, width),
-                random.randint(0, height)
-            ),
-            fill=(
-                random.randint(80, 160),
-                random.randint(80, 160),
-                random.randint(80, 160)
-            ),
-            width=random.randint(2, 5)
+            (random.randint(0,width),
+             random.randint(0,height),
+             random.randint(0,width),
+             random.randint(0,height)),
+            fill=(random.randint(80,160),
+                  random.randint(80,160),
+                  random.randint(80,160)),
+            width=random.randint(2,5)
         )
 
     # noise
+
     for _ in range(400):
 
         draw.point(
-            (
-                random.randint(0, width - 1),
-                random.randint(0, height - 1)
-            ),
-            fill=(
-                random.randint(170, 220),
-                random.randint(170, 220),
-                random.randint(170, 220)
-            )
+            (random.randint(0,width-1),
+             random.randint(0,height-1)),
+            fill=(random.randint(170,220),
+                  random.randint(170,220),
+                  random.randint(170,220))
         )
 
     buffer = io.BytesIO()
@@ -151,10 +155,15 @@ def generate_image(text):
 
 class AdminReview(View):
 
-    def __init__(self, user, role):
+    def __init__(self, user, role, guild_data):
+
         super().__init__(timeout=None)
+
         self.user = user
+
         self.role = role
+
+        self.guild_data = guild_data
 
     @discord.ui.button(label="ยินดีต้อนรับ", style=discord.ButtonStyle.green)
     async def approve(self, interaction: discord.Interaction, button: Button):
@@ -162,7 +171,7 @@ class AdminReview(View):
         if not interaction.user.guild_permissions.administrator:
 
             await interaction.response.send_message(
-                "❌ แอดมินเท่านั้น",
+                "🍓 แอดมินเท่านั้น",
                 ephemeral=True
             )
 
@@ -171,17 +180,17 @@ class AdminReview(View):
         await self.user.add_roles(self.role)
 
         embed = discord.Embed(
-            title="✅ อนุมัติแล้ว",
+            title="🕸️ อนุมัติแล้ว",
             description=f"{self.user.mention} ได้รับ {self.role.mention}",
             color=discord.Color.green()
         )
 
         embed.set_thumbnail(url=self.user.display_avatar.url)
 
-        await interaction.response.edit_message(
-            embed=embed,
-            view=None
-        )
+        if self.guild_data["gif_success"]:
+            embed.set_image(url=self.guild_data["gif_success"])
+
+        await interaction.response.edit_message(embed=embed, view=None)
 
     @discord.ui.button(label="ไม่อนุญาต", style=discord.ButtonStyle.red)
     async def deny(self, interaction: discord.Interaction, button: Button):
@@ -189,7 +198,7 @@ class AdminReview(View):
         if not interaction.user.guild_permissions.administrator:
 
             await interaction.response.send_message(
-                "❌ แอดมินเท่านั้น",
+                "🍎 แอดมินเท่านั้น",
                 ephemeral=True
             )
 
@@ -201,10 +210,7 @@ class AdminReview(View):
             color=discord.Color.red()
         )
 
-        await interaction.response.edit_message(
-            embed=embed,
-            view=None
-        )
+        await interaction.response.edit_message(embed=embed, view=None)
 
 
 # ======================
@@ -214,6 +220,7 @@ class AdminReview(View):
 class CaptchaModal(Modal):
 
     def __init__(self, guild_id):
+
         super().__init__(title="กรอกรหัสยืนยัน")
 
         self.guild_id = guild_id
@@ -243,7 +250,7 @@ class CaptchaModal(Modal):
         if self.answer.value.upper() != correct_code:
 
             await interaction.response.send_message(
-                "❌ รหัสไม่ถูกต้อง",
+                "🌶️ รหัสไม่ถูกต้อง",
                 ephemeral=True
             )
 
@@ -259,10 +266,16 @@ class CaptchaModal(Modal):
 
             verified_users.add(user_id)
 
-            await interaction.response.send_message(
-                f"✅ คุณได้รับ {role.mention}",
-                ephemeral=True
+            embed = discord.Embed(
+                title="🍇 ยืนยันสำเร็จ",
+                description=f"คุณได้รับ {role.mention}",
+                color=discord.Color.green()
             )
+
+            if guild_data["gif_success"]:
+                embed.set_image(url=guild_data["gif_success"])
+
+            await interaction.response.send_message(embed=embed, ephemeral=True)
 
         else:
 
@@ -278,9 +291,12 @@ class CaptchaModal(Modal):
 
             embed.set_thumbnail(url=interaction.user.display_avatar.url)
 
+            if guild_data["gif_pending"]:
+                embed.set_image(url=guild_data["gif_pending"])
+
             await channel.send(
                 embed=embed,
-                view=AdminReview(interaction.user, role)
+                view=AdminReview(interaction.user, role, guild_data)
             )
 
             verified_users.add(user_id)
@@ -298,6 +314,7 @@ class CaptchaModal(Modal):
 class VerifyView(View):
 
     def __init__(self, guild_id):
+
         super().__init__(timeout=None)
 
         self.guild_id = guild_id
@@ -313,6 +330,8 @@ class VerifyView(View):
 
         file = discord.File(image_buffer, filename="captcha.png")
 
+        guild_data = config[str(self.guild_id)]
+
         embed = discord.Embed(
             title="🔐 System | Verify",
             description="กรอกรหัสจากภาพ",
@@ -320,6 +339,9 @@ class VerifyView(View):
         )
 
         embed.set_image(url="attachment://captcha.png")
+
+        if guild_data["gif_verify"]:
+            embed.set_thumbnail(url=guild_data["gif_verify"])
 
         await interaction.response.send_message(
             embed=embed,
@@ -336,7 +358,7 @@ class VerifyView(View):
 
 
 # ======================
-# COG
+# COMMAND
 # ======================
 
 class Safety(commands.Cog):
@@ -349,13 +371,17 @@ class Safety(commands.Cog):
         description="สร้างระบบยืนยันตัวตน"
     )
     @app_commands.checks.has_permissions(administrator=True)
+
     async def safety(
         self,
         interaction: discord.Interaction,
         role: discord.Role,
         verify_channel: discord.TextChannel,
         admin_channel: discord.TextChannel,
-        mode: str
+        mode: str,
+        gif_verify: str,
+        gif_pending: str,
+        gif_success: str
     ):
 
         config[str(interaction.guild.id)] = {
@@ -363,7 +389,10 @@ class Safety(commands.Cog):
             "role": role.id,
             "verify_channel": verify_channel.id,
             "admin_channel": admin_channel.id,
-            "mode": mode
+            "mode": mode,
+            "gif_verify": gif_verify,
+            "gif_pending": gif_pending,
+            "gif_success": gif_success
 
         }
 
@@ -375,13 +404,16 @@ class Safety(commands.Cog):
             color=discord.Color.green()
         )
 
+        if gif_verify:
+            embed.set_image(url=gif_verify)
+
         await verify_channel.send(
             embed=embed,
             view=VerifyView(interaction.guild.id)
         )
 
         await interaction.response.send_message(
-            "✅ สร้างระบบ verify สำเร็จ",
+            "🍃 สร้างระบบ verify สำเร็จ",
             ephemeral=True
         )
 
