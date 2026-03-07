@@ -64,7 +64,6 @@ def generate_image(text):
         font = ImageFont.truetype("arial.ttf", 80)
 
     except:
-
         font = ImageFont.load_default()
 
     spacing = width // (len(text) + 1)
@@ -91,8 +90,6 @@ def generate_image(text):
 
         char_boxes.append(bbox)
 
-    # เส้นทับตัวอักษร
-
     chosen_boxes = random.sample(char_boxes, min(random.randint(2, 3), len(char_boxes)))
 
     for box in chosen_boxes:
@@ -113,8 +110,6 @@ def generate_image(text):
             width=random.randint(4,8)
         )
 
-    # เส้นมั่ว
-
     for _ in range(random.randint(5, 8)):
 
         draw.line(
@@ -127,8 +122,6 @@ def generate_image(text):
                   random.randint(80,160)),
             width=random.randint(2,5)
         )
-
-    # noise
 
     for _ in range(400):
 
@@ -168,9 +161,12 @@ class AdminReview(View):
     @discord.ui.button(label="ยินดีต้อนรับ", style=discord.ButtonStyle.green)
     async def approve(self, interaction: discord.Interaction, button: Button):
 
+        # แก้บัค Application did not respond
+        await interaction.response.defer()
+
         if not interaction.user.guild_permissions.administrator:
 
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "🍓 แอดมินเท่านั้น",
                 ephemeral=True
             )
@@ -190,7 +186,7 @@ class AdminReview(View):
         if self.guild_data["gif_success"]:
             embed.set_image(url=self.guild_data["gif_success"])
 
-        await interaction.response.edit_message(embed=embed, view=None)
+        await interaction.message.edit(embed=embed, view=None)
 
     @discord.ui.button(label="ไม่อนุญาต", style=discord.ButtonStyle.red)
     async def deny(self, interaction: discord.Interaction, button: Button):
