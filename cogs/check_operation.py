@@ -13,9 +13,6 @@ class CheckOperation(commands.Cog):
         self.bot = bot
         self.operation_channels = self.load_config()
 
-    # -------------------------
-    # โหลด / บันทึก config
-    # -------------------------
     def load_config(self):
         if not os.path.exists(CONFIG_FILE):
             return {}
@@ -33,6 +30,7 @@ class CheckOperation(commands.Cog):
     # สร้างรายงานสถานะบอท
     # -------------------------
     async def generate_report(self, guild: discord.Guild):
+
         online = []
         offline = []
 
@@ -43,6 +41,10 @@ class CheckOperation(commands.Cog):
                 else:
                     online.append(member)
 
+        # แสดงชื่อบอทแทน mention
+        online_names = "\n".join([f"@{bot.display_name}" for bot in online]) or "None"
+        offline_names = "\n".join([f"@{bot.display_name}" for bot in offline]) or "None"
+
         embed = discord.Embed(
             title="📁 Bot Operation Report",
             color=discord.Color.blue(),
@@ -51,22 +53,24 @@ class CheckOperation(commands.Cog):
 
         embed.add_field(
             name="🟢 Online Bots",
-            value="\n".join([bot.mention for bot in online]) or "None",
+            value=online_names,
             inline=False
         )
 
         embed.add_field(
             name="🔴 Offline Bots",
-            value="\n".join([bot.mention for bot in offline]) or "None",
+            value=offline_names,
             inline=False
         )
 
-        embed.set_footer(text=f"Total Bots: {len(online) + len(offline)}")
+        embed.set_footer(
+            text=f"Total Bots: {len(online) + len(offline)} | วันนี้ เวลา {datetime.now().strftime('%H:%M')}"
+        )
 
         return embed
 
     # -------------------------
-    # Slash Command (Admin Only)
+    # Slash Command
     # -------------------------
     @app_commands.command(name="check_operation", description="เช็คการทำงานของบอททั้งเซิฟ")
     @app_commands.checks.has_permissions(administrator=True)
@@ -81,10 +85,11 @@ class CheckOperation(commands.Cog):
         await channel.send(embed=embed)
 
     # -------------------------
-    # แจ้งทันทีเมื่อบอทเปลี่ยนสถานะ
+    # แจ้งเมื่อสถานะบอทเปลี่ยน
     # -------------------------
     @commands.Cog.listener()
     async def on_presence_update(self, before, after):
+
         if not after.bot:
             return
 
@@ -97,6 +102,7 @@ class CheckOperation(commands.Cog):
 
         channel_id = self.operation_channels[str(guild.id)]
         channel = guild.get_channel(channel_id)
+
         if not channel:
             return
 
@@ -104,7 +110,7 @@ class CheckOperation(commands.Cog):
 
         embed = discord.Embed(
             title="⚠ Bot Status Changed",
-            description=f"{after.mention} is now {status_text}",
+            description=f"@{after.display_name} is now {status_text}",
             color=discord.Color.green() if after.status != discord.Status.offline else discord.Color.red(),
             timestamp=datetime.utcnow()
         )
@@ -112,11 +118,13 @@ class CheckOperation(commands.Cog):
         await channel.send(embed=embed)
 
     # -------------------------
-    # รายงานอัตโนมัติทุก 1 ชั่วโมง
+    # รายงานทุก 1 ชั่วโมง
     # -------------------------
     @tasks.loop(hours=1)
     async def hourly_report(self):
+
         for guild_id, channel_id in self.operation_channels.items():
+
             guild = self.bot.get_guild(int(guild_id))
             if not guild:
                 continue
@@ -130,6 +138,7 @@ class CheckOperation(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
+
         if not self.hourly_report.is_running():
             self.hourly_report.start()
 
