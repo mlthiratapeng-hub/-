@@ -3,19 +3,16 @@ from discord.ext import commands
 from discord import app_commands
 import time
 
-TRIGGER_NAME = "🍃สร้างห้องส่วนตัว·⌒ﾞ🌻"
+TRIGGER_NAME = "สร้างห้องส่วนตัว"
 
 
-class VoiceView(discord.ui.View):
+class VoiceControl(discord.ui.View):
 
     def __init__(self, owner_id, voice_channel):
         super().__init__(timeout=None)
         self.owner_id = owner_id
         self.voice_channel = voice_channel
 
-    # -------------------------
-    # เลือกจำนวนคน
-    # -------------------------
     @discord.ui.select(
         placeholder="เลือกจำนวนคนในห้อง",
         options=[
@@ -34,25 +31,22 @@ class VoiceView(discord.ui.View):
     async def select_limit(self, interaction: discord.Interaction, select: discord.ui.Select):
 
         if interaction.user.id != self.owner_id:
-            await interaction.response.send_message("🍅 เฉพาะเจ้าของห้อง", ephemeral=True)
+            await interaction.response.send_message("🌶️ เฉพาะเจ้าของห้องเท่านั้น", ephemeral=True)
             return
 
         limit = int(select.values[0])
         await self.voice_channel.edit(user_limit=limit)
 
         await interaction.response.send_message(
-            f"✅ ตั้งค่าห้อง {limit} คน",
+            f"🍃 ตั้งค่าห้อง {limit} คน",
             ephemeral=True
         )
 
-    # -------------------------
-    # ล็อคห้อง
-    # -------------------------
     @discord.ui.button(label="Lock", emoji="🔒", style=discord.ButtonStyle.red)
-    async def lock_room(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def lock(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         if interaction.user.id != self.owner_id:
-            await interaction.response.send_message("🍎 เฉพาะเจ้าของห้อง", ephemeral=True)
+            await interaction.response.send_message("🍅 เฉพาะเจ้าของห้อง", ephemeral=True)
             return
 
         await self.voice_channel.set_permissions(
@@ -62,11 +56,8 @@ class VoiceView(discord.ui.View):
 
         await interaction.response.send_message("🔒 ล็อคห้องแล้ว", ephemeral=True)
 
-    # -------------------------
-    # ปลดล็อคห้อง
-    # -------------------------
-    @discord.ui.button(label="unlock", emoji="🔓", style=discord.ButtonStyle.green)
-    async def unlock_room(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="Unlock", emoji="🔓", style=discord.ButtonStyle.green)
+    async def unlock(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         if interaction.user.id != self.owner_id:
             await interaction.response.send_message("🌶️ เฉพาะเจ้าของห้อง", ephemeral=True)
@@ -87,68 +78,66 @@ class PrivateVoice(commands.Cog):
         self.trigger_channel = None
         self.cooldown = {}
 
-    # -------------------------
-    # สร้าง trigger room
-    # -------------------------
-    @app_commands.command(name="create_a_voice", description="สร้างระบบห้องส่วนตัว")
-    @app_commands.checks.has_permissions(administrator=True)
+    # ------------------
+    # slash command
+    # ------------------
+    @app_commands.command(name="Create_a_voice", description="สร้างระบบห้องส่วนตัว")
     async def create_voice(self, interaction: discord.Interaction):
+
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message(
+                "🍒 คำสั่งนี้สำหรับแอดมินเท่านั้นค่ะ",
+                ephemeral=True
+            )
+            return
 
         channel = await interaction.guild.create_voice_channel(TRIGGER_NAME)
 
         self.trigger_channel = channel.id
 
         await interaction.response.send_message(
-            f"🍃 สร้างห้องแล้ว {channel.mention}",
+            f"🍇 สร้างห้องแล้ว {channel.mention}",
             ephemeral=True
         )
 
-    # -------------------------
-    # เข้า voice
-    # -------------------------
+    # ------------------
+    # voice system
+    # ------------------
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
 
-        if not after.channel:
-            return
+        # เข้า trigger room
+        if after.channel and after.channel.id == self.trigger_channel:
 
-        if after.channel.id != self.trigger_channel:
-            return
+            now = time.time()
 
-        now = time.time()
+            if member.id in self.cooldown:
+                if now - self.cooldown[member.id] < 10:
+                    await member.move_to(None)
+                    return
 
-        if member.id in self.cooldown:
-            if now - self.cooldown[member.id] < 10:
-                await member.move_to(None)
-                return
+            self.cooldown[member.id] = now
 
-        self.cooldown[member.id] = now
+            guild = member.guild
 
-        guild = member.guild
+            private = await guild.create_voice_channel(
+                name=f"Private-{member.name}",
+                category=after.channel.category
+            )
 
-        private = await guild.create_voice_channel(
-            name=f"Private-{member.name}",
-            category=after.channel.category
-        )
+            await member.move_to(private)
 
-        await member.move_to(private)
+            embed = discord.Embed(
+                title="📁 Voice Control",
+                description="ปรับแต่งห้องของคุณ",
+                color=discord.Color.green()
+            )
 
-        embed = discord.Embed(
-            title="🕸️ Voice Control",
-            description="ปรับแต่งห้องของคุณ",
-            color=discord.Color.green()
-        )
+            view = VoiceControl(member.id, private)
 
-        view = VoiceView(member.id, private)
+            await private.send(embed=embed, view=view)
 
-        await private.send(embed=embed, view=view)
-
-    # -------------------------
-    # ลบห้องถ้าไม่มีคน
-    # -------------------------
-    @commands.Cog.listener()
-    async def on_voice_state_update(self, member, before, after):
-
+        # ลบห้องถ้าไม่มีคน
         if before.channel:
 
             if before.channel.name.startswith("Private-"):
