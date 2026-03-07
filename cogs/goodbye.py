@@ -4,7 +4,7 @@ from discord import app_commands
 import json
 import os
 
-DATA_FILE = "goodbye_data.json"
+DATA_FILE = "cogs/data/goodbye.json"
 
 
 def load_data():
@@ -43,6 +43,11 @@ class GoodbyeMain(discord.ui.View):
             ephemeral=True
         )
 
+    @discord.ui.button(label="🎞 ตั้งค่า GIF", style=discord.ButtonStyle.gray)
+    async def set_gif(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+        await interaction.response.send_modal(GifModal())
+
     @discord.ui.button(label="🧪 เทสระบบ", style=discord.ButtonStyle.green)
     async def test(self, interaction: discord.Interaction, button: discord.ui.Button):
 
@@ -67,6 +72,9 @@ class GoodbyeMain(discord.ui.View):
         )
 
         embed.set_thumbnail(url=fake.display_avatar.url)
+
+        if "gif" in data[guild_id]:
+            embed.set_image(url=data[guild_id]["gif"])
 
         await channel.send(embed=embed)
 
@@ -99,6 +107,31 @@ class GoodbyeModal(discord.ui.Modal, title="ตั้งค่าข้อคว
 
         await interaction.response.send_message(
             "📁 บันทึกข้อความแล้ว",
+            ephemeral=True
+        )
+
+
+class GifModal(discord.ui.Modal, title="ตั้งค่า Goodbye GIF"):
+
+    gif = discord.ui.TextInput(
+        label="ลิงก์ GIF",
+        placeholder="https://....gif",
+        max_length=500
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+
+        guild_id = str(interaction.guild.id)
+
+        if guild_id not in data:
+            data[guild_id] = {}
+
+        data[guild_id]["gif"] = self.gif.value
+
+        save_data(data)
+
+        await interaction.response.send_message(
+            "🎞 บันทึก GIF แล้ว",
             ephemeral=True
         )
 
@@ -162,7 +195,7 @@ class Goodbye(commands.Cog):
         embed.add_field(
             name="ตัวแปรที่ใช้ได้",
             value="""
-{user} = ชื่อคนออก
+{user} = แท็กคนออก
 {server} = ชื่อเซิร์ฟ
 """,
             inline=False
@@ -202,6 +235,9 @@ class Goodbye(commands.Cog):
         )
 
         embed.set_thumbnail(url=member.display_avatar.url)
+
+        if "gif" in data[guild_id]:
+            embed.set_image(url=data[guild_id]["gif"])
 
         await channel.send(embed=embed)
 
