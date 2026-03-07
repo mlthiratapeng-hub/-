@@ -10,3 +10,6 @@ pytz
 wavelink
 yt-dlp
 discord.py
+gTTS
+PyNaCl
+ffmpeg-python
