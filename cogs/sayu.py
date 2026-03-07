@@ -9,7 +9,7 @@ import io
 import json
 import os
 
-CONFIG_FILE = "config.json"
+CONFIG_FILE = "cogs/config.json"
 
 captcha_cache = {}
 verified_users = set()
