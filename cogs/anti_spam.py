@@ -6,12 +6,10 @@ import re
 
 anti_spam_status = {}
 
-# เก็บข้อมูล spam
 user_message_log = {}
 user_attachment_log = {}
 user_gif_log = {}
 
-# ================= TOGGLE VIEW =================
 
 class AntiSpamToggleView(discord.ui.View):
     def __init__(self, guild_id: int):
@@ -45,8 +43,6 @@ class AntiSpamToggleView(discord.ui.View):
         await interaction.response.edit_message(embed=embed, view=None)
 
 
-# ================= MAIN VIEW =================
-
 class AntiSpamMainView(discord.ui.View):
     def __init__(self, guild_id: int):
         super().__init__(timeout=60)
@@ -67,15 +63,12 @@ class AntiSpamMainView(discord.ui.View):
         )
 
 
-# ================= COG =================
-
 class AntiSpam(commands.Cog):
+
     def __init__(self, bot):
         self.bot = bot
 
-    # ===== SLASH COMMAND =====
-
-    @app_commands.command(name="anti-spam", description="ตั้งค่าระบบป้องกันสแปม")
+    @app_commands.command(name="protect-spam", description="ตั้งค่าระบบป้องกันสแปม")
     async def anti_spam(self, interaction: discord.Interaction):
 
         if not interaction.guild:
@@ -104,15 +97,14 @@ class AntiSpam(commands.Cog):
             ephemeral=True
         )
 
-    # ================= SPAM DETECTION =================
-
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
 
         if not message.guild:
             return
 
-        if message.author.bot:
+        # กันบอทตัวเอง
+        if message.author.id == self.bot.user.id:
             return
 
         guild_id = message.guild.id
@@ -132,6 +124,7 @@ class AntiSpam(commands.Cog):
         user_message_log[user_id] = [t for t in user_message_log[user_id] if now - t < 5]
 
         if len(user_message_log[user_id]) > 5:
+
             await message.delete()
 
             warn = await message.channel.send(
@@ -155,7 +148,7 @@ class AntiSpam(commands.Cog):
             await warn.delete(delay=3)
             return
 
-        # ===== FILE / IMAGE SPAM =====
+        # ===== FILE SPAM =====
 
         if message.attachments:
 
@@ -181,16 +174,13 @@ class AntiSpam(commands.Cog):
 
         is_gif = False
 
-        # เช็คไฟล์ gif
         for att in message.attachments:
             if att.filename.lower().endswith(".gif"):
                 is_gif = True
 
-        # เช็คลิงก์ gif
         if ".gif" in message.content.lower():
             is_gif = True
 
-        # เช็ค tenor / giphy
         if "tenor.com" in message.content.lower() or "giphy.com" in message.content.lower():
             is_gif = True
 
