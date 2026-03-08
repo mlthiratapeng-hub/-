@@ -2,12 +2,15 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import time
+import asyncio
 from collections import defaultdict
 from database import is_whitelisted
 
 anti_nuke_status = {}
 
-# ================= TOGGLE VIEW =================
+LIMIT = 4
+TIME_WINDOW = 5
+
 
 class AntiNukeToggleView(discord.ui.View):
     def __init__(self, guild_id):
@@ -20,7 +23,7 @@ class AntiNukeToggleView(discord.ui.View):
         anti_nuke_status[self.guild_id] = True
 
         embed = discord.Embed(
-            title="💣 ระบบ Anti-Nuke",
+            title="💣 ระบบ protect-Nuke",
             description="📁 เปิดระบบเรียบร้อยแล้ว",
             color=discord.Color.green()
         )
@@ -33,15 +36,13 @@ class AntiNukeToggleView(discord.ui.View):
         anti_nuke_status[self.guild_id] = False
 
         embed = discord.Embed(
-            title="💣 ระบบ Anti-Nuke",
+            title="💣 ระบบ protect-Nuke",
             description="💢 ปิดระบบเรียบร้อยแล้ว",
             color=discord.Color.red()
         )
 
         await interaction.response.edit_message(embed=embed, view=None)
 
-
-# ================= MAIN VIEW =================
 
 class AntiNukeMainView(discord.ui.View):
     def __init__(self, guild_id):
@@ -52,7 +53,7 @@ class AntiNukeMainView(discord.ui.View):
     async def settings(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         embed = discord.Embed(
-            title="💣 ตั้งค่าระบบ Anti-Nuke",
+            title="💣 ตั้งค่าระบบ protect-Nuke",
             description="เลือกระบบที่ต้องการด้านล่างค่ะ...",
             color=discord.Color.blurple()
         )
@@ -63,14 +64,13 @@ class AntiNukeMainView(discord.ui.View):
         )
 
 
-# ================= COG =================
-
 class AntiNuke(commands.Cog):
+
     def __init__(self, bot):
         self.bot = bot
         self.action_log = defaultdict(list)
 
-    @app_commands.command(name="anti-nuke", description="ตั้งค่าระบบป้องกันการลบห้องรัว")
+    @app_commands.command(name="protect-nuke", description="ตั้งค่าระบบ Anti-Nuke")
     async def anti_nuke(self, interaction: discord.Interaction):
 
         if not interaction.guild:
@@ -82,7 +82,7 @@ class AntiNuke(commands.Cog):
             anti_nuke_status[guild_id] = False
 
         embed = discord.Embed(
-            title="💣 ตั้งค่าระบบ Anti-Nuke",
+            title="💣 ตั้งค่าระบบ protect-Nuke",
             description="กดปุ่มด้านล่างเพื่อจัดการระบบ",
             color=discord.Color.blurple()
         )
@@ -99,49 +99,149 @@ class AntiNuke(commands.Cog):
             ephemeral=True
         )
 
-    @commands.Cog.listener()
-    async def on_guild_channel_delete(self, channel: discord.abc.GuildChannel):
-
-        guild = channel.guild
-        guild_id = guild.id
-
-        if not anti_nuke_status.get(guild_id, False):
-            return
-
-        async for entry in guild.audit_logs(
-            limit=1,
-            action=discord.AuditLogAction.channel_delete
-        ):
-            user = entry.user
-            break
-        else:
-            return
-
-        if user.bot:
-            return
+    async def check_limit(self, guild, user):
 
         if is_whitelisted(user.id):
             return
 
         now = time.time()
+
         self.action_log[user.id].append(now)
 
-        # เก็บเฉพาะ 5 วิล่าสุด
         self.action_log[user.id] = [
             t for t in self.action_log[user.id]
-            if now - t <= 5
+            if now - t <= TIME_WINDOW
         ]
 
-        # ลบ 3 ห้องใน 5 วิ = แบน
-        if len(self.action_log[user.id]) >= 3:
-            try:
-                member = guild.get_member(user.id)
-                if member:
-                    await member.ban(reason="Anti-Nuke: ลบห้องเร็วเกินกำหนด")
-            except Exception as e:
-                print("ANTI-NUKE BAN ERROR:", e)
+        if len(self.action_log[user.id]) >= LIMIT:
+
+            member = guild.get_member(user.id)
+
+            if member:
+                try:
+                    await member.ban(reason="Anti-Nuke Protection Triggered")
+                except Exception as e:
+                    print("BAN ERROR:", e)
 
             self.action_log[user.id].clear()
+
+    async def get_audit_user(self, guild, action):
+
+        await asyncio.sleep(1)
+
+        async for entry in guild.audit_logs(limit=1, action=action):
+            return entry.user
+
+    @commands.Cog.listener()
+    async def on_guild_channel_delete(self, channel):
+
+        guild = channel.guild
+
+        if not anti_nuke_status.get(guild.id, False):
+            return
+
+        user = await self.get_audit_user(guild, discord.AuditLogAction.channel_delete)
+
+        if user:
+            await self.check_limit(guild, user)
+
+    @commands.Cog.listener()
+    async def on_guild_channel_create(self, channel):
+
+        guild = channel.guild
+
+        if not anti_nuke_status.get(guild.id, False):
+            return
+
+        user = await self.get_audit_user(guild, discord.AuditLogAction.channel_create)
+
+        if user:
+            await self.check_limit(guild, user)
+
+    @commands.Cog.listener()
+    async def on_guild_role_delete(self, role):
+
+        guild = role.guild
+
+        if not anti_nuke_status.get(guild.id, False):
+            return
+
+        user = await self.get_audit_user(guild, discord.AuditLogAction.role_delete)
+
+        if user:
+            await self.check_limit(guild, user)
+
+    @commands.Cog.listener()
+    async def on_guild_role_create(self, role):
+
+        guild = role.guild
+
+        if not anti_nuke_status.get(guild.id, False):
+            return
+
+        user = await self.get_audit_user(guild, discord.AuditLogAction.role_create)
+
+        if user:
+            await self.check_limit(guild, user)
+
+    @commands.Cog.listener()
+    async def on_member_ban(self, guild, user):
+
+        if not anti_nuke_status.get(guild.id, False):
+            return
+
+        attacker = await self.get_audit_user(guild, discord.AuditLogAction.ban)
+
+        if attacker:
+            await self.check_limit(guild, attacker)
+
+    @commands.Cog.listener()
+    async def on_member_remove(self, member):
+
+        guild = member.guild
+
+        if not anti_nuke_status.get(guild.id, False):
+            return
+
+        attacker = await self.get_audit_user(guild, discord.AuditLogAction.kick)
+
+        if attacker:
+            await self.check_limit(guild, attacker)
+
+    @commands.Cog.listener()
+    async def on_webhooks_update(self, channel):
+
+        guild = channel.guild
+
+        if not anti_nuke_status.get(guild.id, False):
+            return
+
+        for action in [
+            discord.AuditLogAction.webhook_create,
+            discord.AuditLogAction.webhook_delete,
+            discord.AuditLogAction.webhook_update
+        ]:
+
+            user = await self.get_audit_user(guild, action)
+
+            if user:
+                await self.check_limit(guild, user)
+
+    @commands.Cog.listener()
+    async def on_message(self, message):
+
+        if not message.guild:
+            return
+
+        if not anti_nuke_status.get(message.guild.id, False):
+            return
+
+        if "@everyone" in message.content or "@here" in message.content:
+
+            if is_whitelisted(message.author.id):
+                return
+
+            await self.check_limit(message.guild, message.author)
 
 
 async def setup(bot):
