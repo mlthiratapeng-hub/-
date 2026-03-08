@@ -40,11 +40,12 @@ class AntiLinkModeView(discord.ui.View):
 
 
 class AntiLink(commands.Cog):
+
     def __init__(self, bot):
         self.bot = bot
         self.warnings = {}
 
-    @app_commands.command(name="anti-link", description="ตั้งค่าระบบป้องกันลิงก์")
+    @app_commands.command(name="protect-link", description="ตั้งค่าระบบป้องกันลิงก์")
     async def anti_link(self, interaction: discord.Interaction):
 
         if not interaction.user.guild_permissions.administrator:
@@ -87,7 +88,11 @@ class AntiLink(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message):
 
-        if message.author.bot or not message.guild:
+        if not message.guild:
+            return
+
+        # กันบอทตัวเอง
+        if message.author.id == self.bot.user.id:
             return
 
         guild_id = message.guild.id
@@ -130,7 +135,10 @@ class AntiLink(commands.Cog):
             return
 
         try:
-            await message.author.ban(reason="ส่งลิงก์ครบ 3 ครั้ง")
+            member = message.guild.get_member(message.author.id)
+            if member:
+                await member.ban(reason="ส่งลิงก์ครบ 3 ครั้ง")
+
             await message.channel.send(
                 f"🔨 {message.author.mention} ถูกแบน (ส่งลิงก์ครบ 3 ครั้ง)",
                 delete_after=5
