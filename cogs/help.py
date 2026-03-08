@@ -35,9 +35,9 @@ class Help(commands.Cog):
         embed.add_field(
             name="🛡️ ระบบป้องกัน",
             value=(
-                "`/anti_link` ป้องกันลิงก์\n"
-                "`/anti_spam` ป้องกันสแปม\n"
-                "`/anti_nuke` ป้องกันยิงดิส\n"
+                "`/protect_link` ป้องกันลิงก์\n"
+                "`/protect_spam` ป้องกันสแปม\n"
+                "`/protect_nuke` ป้องกันยิงดิส\n"
                 "`/safety` ยืนยันตัวตนด้วยภาพ\n"
                 "`/verify_identity` ยืนยันตัวตนด้วยเลข\n"
                 "`/noplss` ป้องกันการตรวจสอบจากบอท\n"
