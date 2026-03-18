@@ -3,12 +3,28 @@ from discord.ext import commands
 import os
 from database import init_db
 
+# ====== KEEP ALIVE (กันหลับ) ======
+from flask import Flask
+from threading import Thread
+
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "I'm alive"
+
+def run():
+    app.run(host='0.0.0.0', port=10000)
+
+def keep_alive():
+    t = Thread(target=run)
+    t.start()
+
 # ====== ตั้งค่า ======
-ALLOWED_GUILD_ID = 1476624073990738022  # (ยังเก็บไว้ เผื่อใช้ใน cog)
+ALLOWED_GUILD_ID = 1476624073990738022
 LOG_CHANNEL_ID = 1476975551091572746
 
 intents = discord.Intents.all()
-
 
 class MyBot(commands.Bot):
     def __init__(self):
@@ -24,18 +40,15 @@ class MyBot(commands.Bot):
                 await self.load_extension(f"cogs.{file[:-3]}")
                 print(f"Loaded {file}")
 
-        # 🔥 Sync แบบ Global (ทุกเซิร์ฟ)
+        # 🔥 Sync แบบ Global
         synced = await self.tree.sync()
         print(f"Synced {len(synced)} global commands")
 
-
 bot = MyBot()
-
 
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}")
-
 
 @bot.event
 async def on_message(message):
@@ -89,6 +102,8 @@ async def on_app_command_completion(interaction: discord.Interaction, command):
     if log_channel:
         await log_channel.send(embed=embed)
 
+# ====== เริ่มระบบ ======
 init_db()
+keep_alive()  # 🔥 เรียกกันหลับตรงนี้
 
 bot.run(os.getenv("TOKEN"))
