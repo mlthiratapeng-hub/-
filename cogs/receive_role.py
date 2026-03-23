@@ -44,7 +44,7 @@ class ReceiveRole(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="receiverole", description="สร้างปุ่มรับยศ")
+    @app_commands.command(name="vdena_rank", description="สร้างปุ่มรับยศ")
     async def receiverole(
         self,
         interaction: discord.Interaction,
