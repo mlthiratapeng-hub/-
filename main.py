@@ -23,7 +23,7 @@ def keep_alive():
 
 # ====== ตั้งค่า ======
 ALLOWED_GUILD_ID = 1127935823195668480
-LOG_CHANNEL_ID = 1476975551091572746
+LOG_CHANNEL_ID = 1487160190678601811
 
 intents = discord.Intents.all()
 
