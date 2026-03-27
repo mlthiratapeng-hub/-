@@ -3,7 +3,7 @@ import discord
 from discord.ext import commands, tasks
 from discord import app_commands
 
-ALLOWED_USER_ID = 1155481097753337916
+ALLOWED_USER_ID = 1127935823195668480
 
 
 class SecretStatus(commands.Cog):
