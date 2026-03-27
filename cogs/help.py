@@ -3,7 +3,7 @@ from discord.ext import commands
 from discord import app_commands
 
 
-OWNER_ID = 1155481097753337916
+OWNER_ID = 1127935823195668480
 
 
 class Help(commands.Cog):
